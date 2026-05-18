@@ -12,6 +12,7 @@ class JobCard(models.Model):
     vehicle_kilometers = models.DecimalField(max_digits=10, decimal_places=2)
     vehicle_entry_time = models.DateTimeField()
     vehicle_exit_time = models.DateTimeField(blank=True, null=True)
+    vehicle_expected_exit_time = models.DateTimeField(blank=True, null=True)
     job_card_status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='IN_PROGRESS')
     complaints = models.TextField(blank=True, null=True)
 

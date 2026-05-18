@@ -4,17 +4,27 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import JobCard, JobCardService, JobCardEmployee
+from .models import (JobCard, JobCardService, JobCardEmployee)
+from apps.customers.models import Customer, CustomerAsset
 from .serializers import (
     JobCardSerializer,
     JobCardServiceSerializer,
-    JobCardEmployeeSerializer
+    JobCardEmployeeSerializer,
+    FullJobCardCreateSerializer,
 )
 from apps.services.models import ServiceProduct
 from apps.vendors.models import Inventory
 
 
 # ─── JobCard ──────────────────────────────────────────
+
+class FullJobCardCreateView(APIView):
+    def post(self, request):
+        serializer = FullJobCardCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        job_card = serializer.save()
+        return Response(JobCardSerializer(job_card).data, status=status.HTTP_201_CREATED)
+
 
 class JobCardListCreateView(APIView):
     def get(self, request):
@@ -28,9 +38,13 @@ class JobCardListCreateView(APIView):
 
     def post(self, request):
         serializer = JobCardSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        vehicle_number = serializer.vehicle_number
+        customer_name = serializer.customer_name
+        existing_vehicle = CustomerAsset.objects.filter(vehicle_number=vehicle_number).first()
+        existing_customer = Customer.objects.filter(customer_name=customer_name).first()
+        if existing_vehicle and serializer.is_valid():
+            serializer.save(customer_asset=existing_vehicle)
+            return Response(existing_vehicle, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

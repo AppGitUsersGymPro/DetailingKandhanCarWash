@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Customer, CustomerAsset
+from .models import Customer, CustomerAsset, normalize_phone
 from .serializers import CustomerSerializer, CustomerAssetSerializer
 
 
@@ -134,3 +134,46 @@ class CustomerAssetDetailView(APIView):
             )
         asset.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+class VehicleFetchView(APIView):
+    def get(self, request):
+        vehicle_number = request.query_params.get('vehicle_number')
+        if not vehicle_number:
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+        asset = CustomerAsset.objects.filter(vehicle_number=vehicle_number).first()
+        if not asset:
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+        return Response({
+            'exists': True,
+            'customer': {
+                'id': asset.customer.id,
+                'customer_name': asset.customer.customer_name,
+                'phone_number': asset.customer.phone_number,
+                'email': asset.customer.email,
+            },
+            'vehicle': {
+                'id': asset.id,
+                'vehicle_number': asset.vehicle_number,
+                'vehicle_name': asset.vehicle_name,
+                'vehicle_type': asset.vehicle_type,
+            },
+        }, status=status.HTTP_200_OK)
+
+
+class CustomerFetchView(APIView):
+    def get(self, request):
+        phone_number = normalize_phone(request.query_params.get('phone_number'))
+        if not phone_number:
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+        customer = Customer.objects.filter(phone_number=phone_number).first()
+        if not customer:
+            return Response({'exists': False}, status=status.HTTP_200_OK)
+        return Response({
+            'exists': True,
+            'customer': {
+                'id': customer.id,
+                'customer_name': customer.customer_name,
+                'phone_number': customer.phone_number,
+                'email': customer.email,
+            },
+        }, status=status.HTTP_200_OK)

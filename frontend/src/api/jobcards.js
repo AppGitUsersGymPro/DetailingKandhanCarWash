@@ -2,6 +2,7 @@ import api from './axios';
 
 export const listJobCards = (params) => api.get('jobcards/', { params }).then(r => r.data);
 export const createJobCard = (data) => api.post('jobcards/', data).then(r => r.data);
+export const createFullJobCard = (data) => api.post('jobcards/create-full/', data).then(r => r.data);
 export const getJobCard = (id) => api.get(`jobcards/${id}/`).then(r => r.data);
 export const updateJobCard = (id, data) => api.put(`jobcards/${id}/`, data).then(r => r.data);
 export const deleteJobCard = (id) => api.delete(`jobcards/${id}/`).then(r => r.data);

@@ -11,3 +11,6 @@ export const addCustomerAsset = (customerId, data) => api.post(`customers/${cust
 export const getAsset = (assetId) => api.get(`customers/assets/${assetId}/`).then(r => r.data);
 export const updateAsset = (assetId, data) => api.put(`customers/assets/${assetId}/`, data).then(r => r.data);
 export const deleteAsset = (assetId) => api.delete(`customers/assets/${assetId}/`).then(r => r.data);
+export const getAssetByVehicleNumber = (vehicleNumber) => api.get(`customers/assets/vehicle/${vehicleNumber}/`).then(r => r.data);
+export const checkVehicle = (vehicleNumber) => api.get('customers/check-vehicle/', { params: { vehicle_number: vehicleNumber } }).then(r => r.data);
+export const checkCustomer = (phoneNumber) => api.get('customers/check-customer/', { params: { phone_number: phoneNumber } }).then(r => r.data);

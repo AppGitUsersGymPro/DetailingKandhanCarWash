@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    JobCardListCreateView, JobCardDetailView,
+    JobCardListCreateView, JobCardDetailView, FullJobCardCreateView,
     JobCardServiceListCreateView, JobCardServiceDeleteView,
     JobCardEmployeeListCreateView, JobCardEmployeeDeleteView
 )
@@ -8,6 +8,7 @@ from .views import (
 urlpatterns = [
     # JobCard
     path('', JobCardListCreateView.as_view(), name='jobcard-list'),
+    path('create-full/', FullJobCardCreateView.as_view(), name='jobcard-create-full'),
     path('<int:pk>/', JobCardDetailView.as_view(), name='jobcard-detail'),
 
     # JobCard Services
