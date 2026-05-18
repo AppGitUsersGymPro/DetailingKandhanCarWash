@@ -132,6 +132,16 @@ class Employee(models.Model):
     def __str__(self):
         return f"{self.employee_code} – {self.employee_name}"
 
+    def save(self, *args, **kwargs):
+        if not self.employee_code:
+            # First save to get the PK, then stamp the generated code
+            super().save(*args, **kwargs)
+            generated = f'EMP{self.pk:03d}'
+            Employee.objects.filter(pk=self.pk).update(employee_code=generated)
+            self.employee_code = generated
+        else:
+            super().save(*args, **kwargs)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ATTENDANCE

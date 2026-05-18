@@ -1,17 +1,15 @@
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
-import { UserCog, Clock, CalendarCheck, Wallet, ScanLine } from 'lucide-react';
+import { UserCog, Clock, CalendarCheck, Wallet } from 'lucide-react';
 import EmployeesTab from './EmployeesTab';
 import ShiftsTab from './ShiftsTab';
 import AttendanceTab from './AttendanceTab';
 import SalaryTab from './SalaryTab';
-import KioskTab from './KioskTab';
 
 const tabs = [
   { to: '/employees', icon: UserCog, label: 'All Employees', end: true },
   { to: '/employees/shifts', icon: Clock, label: 'Shifts' },
   { to: '/employees/attendance', icon: CalendarCheck, label: 'Attendance' },
   { to: '/employees/salary', icon: Wallet, label: 'Salary' },
-  { to: '/employees/kiosk', icon: ScanLine, label: 'Kiosk' },
 ];
 
 export default function EmployeesHub() {
@@ -41,7 +39,6 @@ export default function EmployeesHub() {
         <Route path="shifts" element={<ShiftsTab />} />
         <Route path="attendance" element={<AttendanceTab />} />
         <Route path="salary" element={<SalaryTab />} />
-        <Route path="kiosk" element={<KioskTab />} />
         <Route path="*" element={<Navigate to="/employees" replace />} />
       </Routes>
     </div>

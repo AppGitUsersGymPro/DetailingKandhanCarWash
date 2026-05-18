@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.db.models import Sum
+from decimal import Decimal
 from .models import Employee, Shift, Attendance, SalaryAdvance, SalaryTransaction
 
 
@@ -16,8 +18,9 @@ class ShiftSerializer(serializers.ModelSerializer):
 # ── Employee ──────────────────────────────────────────────────────────────────
 
 class EmployeeSerializer(serializers.ModelSerializer):
-    # Show shift name alongside the shift id in responses
-    shift_name = serializers.CharField(source='shift.shift_name', read_only=True)
+    shift_name    = serializers.CharField(source='shift.shift_name', read_only=True)
+    # Not required on create — backend auto-generates EMP{id:03d} when blank
+    employee_code = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
         model = Employee
@@ -43,6 +46,28 @@ class SalaryAdvanceSerializer(serializers.ModelSerializer):
         model = SalaryAdvance
         fields = '__all__'
 
+    def validate(self, data):
+        employee = data.get('employee')
+        amount   = data.get('amount')
+        if not employee or not amount:
+            return data
+
+        # Sum all pending + approved advances (unsettled) for this employee
+        qs = SalaryAdvance.objects.filter(employee=employee, status__in=['pending', 'approved'])
+        if self.instance:                        # exclude self on update
+            qs = qs.exclude(pk=self.instance.pk)
+        outstanding = qs.aggregate(total=Sum('amount'))['total'] or Decimal('0')
+
+        if outstanding + Decimal(str(amount)) > employee.salary:
+            raise serializers.ValidationError({
+                'amount': (
+                    f'Total outstanding advances (₹{outstanding + Decimal(str(amount))}) '
+                    f'would exceed the monthly salary (₹{employee.salary}). '
+                    f'Already outstanding: ₹{outstanding}.'
+                )
+            })
+        return data
+
 
 # ── Salary Transaction ────────────────────────────────────────────────────────
 
@@ -59,3 +84,13 @@ class SalaryTransactionSerializer(serializers.ModelSerializer):
 
     def get_month_display(self, obj):
         return obj.month.strftime('%B %Y') if obj.month else ''
+
+    def validate(self, data):
+        base   = float(data.get('base_salary',       0))
+        bonus  = float(data.get('bonus',             0))
+        deduct = float(data.get('advance_deduction', 0))
+        if base + bonus - deduct < 0:
+            raise serializers.ValidationError(
+                {'advance_deduction': 'Advance deduction cannot exceed salary plus bonus.'}
+            )
+        return data

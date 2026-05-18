@@ -6,12 +6,14 @@ from .views import (
     SalaryAdvanceListView, SalaryAdvanceDetailView,
     SalaryTransactionListView, SalaryTransactionDetailView,
     SalaryComputeView, AttendanceKioskView, AttendanceKioskLookupView,
+    EmployeeCalendarView, AttendanceAutoCheckoutView,
 )
 
 urlpatterns = [
-    # Employees — existing, unchanged
+    # Employees
     path('', EmployeeListView.as_view(), name='employee-list'),
     path('<int:pk>/', EmployeeDetailView.as_view(), name='employee-detail'),
+    path('<int:pk>/calendar/', EmployeeCalendarView.as_view(), name='employee-calendar'),
 
     # Shifts
     path('shifts/', ShiftListView.as_view(), name='shift-list'),
@@ -20,6 +22,7 @@ urlpatterns = [
     # Attendance
     path('attendance/', AttendanceListView.as_view(), name='attendance-list'),
     path('attendance/<int:pk>/', AttendanceDetailView.as_view(), name='attendance-detail'),
+    path('attendance/auto-checkout/', AttendanceAutoCheckoutView.as_view(), name='attendance-auto-checkout'),
     path('attendance/kiosk/lookup/', AttendanceKioskLookupView.as_view(), name='attendance-kiosk-lookup'),
     path('attendance/kiosk/', AttendanceKioskView.as_view(), name='attendance-kiosk'),
 

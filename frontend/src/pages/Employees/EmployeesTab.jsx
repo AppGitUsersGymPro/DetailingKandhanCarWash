@@ -263,7 +263,7 @@ function EmployeeCard({ emp, onEdit, onDelete }) {
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge variant={t.variant}>{t.label}</Badge>
             {emp.status !== 'active' && <Badge variant={st.variant}>{st.label}</Badge>}
-            <span className="text-[10px] font-mono text-gray-600 bg-bg-elev border border-border px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-accent bg-accent/10 border border-accent/30 px-1.5 py-0.5 rounded">
               {emp.employee_code}
             </span>
           </div>
@@ -549,20 +549,10 @@ function SectionLabel({ children }) {
 
 // ── Employee Form Modal ───────────────────────────────────────────────────────
 
-function generateNextCode(employees) {
-  const nums = employees
-    .map((e) => e.employee_code)
-    .filter((c) => /^EMP\d+$/i.test(c))
-    .map((c) => parseInt(c.replace(/^EMP/i, ''), 10))
-    .filter((n) => !isNaN(n));
-  const max = nums.length > 0 ? Math.max(...nums) : 0;
-  return `EMP${String(max + 1).padStart(3, '0')}`;
-}
-
 function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
   const toast = useToast();
   const empty = {
-    employee_code: '', employee_name: '', employee_phone_number: '', employee_email: '',
+    employee_name: '', employee_phone_number: '', employee_email: '',
     employee_address: '', employee_type: 'full_time', status: 'active',
     dob: '', joining_date: '', salary: '', shift: '',
   };
@@ -581,7 +571,7 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
-        employee_code:         modal.data.employee_code         || '',
+        employee_code:         modal.data.employee_code         || '',  // editable on edit only
         employee_name:         modal.data.employee_name         || '',
         employee_phone_number: modal.data.employee_phone_number || '',
         employee_email:        modal.data.employee_email        || '',
@@ -594,7 +584,7 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
         shift:                 modal.data.shift                 || '',
       });
     } else {
-      setForm({ ...empty, employee_code: generateNextCode(employees) });
+      setForm({ ...empty });
     }
     setErrors({});
     // eslint-disable-next-line
@@ -605,10 +595,11 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
   const submit = async (e) => {
     e.preventDefault();
     const eMap = {};
-    if (!form.employee_code.trim())         eMap.employee_code         = 'Required';
+    if (modal.mode === 'edit' && !form.employee_code?.trim()) eMap.employee_code = 'Required';
     if (!form.employee_name.trim())         eMap.employee_name         = 'Required';
     if (!form.employee_phone_number.trim()) eMap.employee_phone_number = 'Required';
     if (!form.employee_email.trim())        eMap.employee_email        = 'Required';
+    if (!form.employee_address.trim())      eMap.employee_address      = 'Required';
     if (!form.joining_date)                 eMap.joining_date          = 'Required';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
@@ -621,6 +612,9 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
         joining_date: form.joining_date || null,
         shift:        form.shift        || null,
       };
+      if (modal.mode === 'create') {
+        delete payload.employee_code;  // backend auto-generates from PK
+      }
       if (modal.mode === 'edit') {
         await updateEmployee(modal.data.id, payload);
         toast.success('Employee updated');
@@ -656,20 +650,22 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
         <div>
           <SectionLabel>Identity</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {modal?.mode === 'edit' && (
+              <Field label="Employee Code" required error={errors.employee_code}>
+                <Input
+                  placeholder="e.g. EMP001"
+                  value={form.employee_code || ''}
+                  onChange={set('employee_code')}
+                  className="font-mono"
+                />
+              </Field>
+            )}
             <Field
-              label="Employee Code"
+              label="Full Name"
               required
-              error={errors.employee_code}
-              hint={modal?.mode === 'create' ? 'Auto-generated — you can change it' : undefined}
+              error={errors.employee_name}
+              className={modal?.mode === 'create' ? 'sm:col-span-2' : undefined}
             >
-              <Input
-                placeholder="e.g. EMP001"
-                value={form.employee_code}
-                onChange={set('employee_code')}
-                className="font-mono"
-              />
-            </Field>
-            <Field label="Full Name" required error={errors.employee_name}>
               <Input placeholder="e.g. Ravi Kumar" value={form.employee_name} onChange={set('employee_name')} />
             </Field>
           </div>
@@ -685,7 +681,7 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
               <Input type="email" placeholder="e.g. ravi@email.com" value={form.employee_email} onChange={set('employee_email')} />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="Address">
+              <Field label="Address" required error={errors.employee_address}>
                 <Input placeholder="Full address" value={form.employee_address} onChange={set('employee_address')} />
               </Field>
             </div>
@@ -702,13 +698,15 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
                 <option value="contractor">Contractor</option>
               </Select>
             </Field>
-            <Field label="Status">
-              <Select value={form.status} onChange={set('status')}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="on_leave">On Leave</option>
-              </Select>
-            </Field>
+            {modal?.mode === 'edit' && (
+              <Field label="Status">
+                <Select value={form.status} onChange={set('status')}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="on_leave">On Leave</option>
+                </Select>
+              </Field>
+            )}
             <Field label="Assigned Shift">
               <Select value={form.shift} onChange={set('shift')}>
                 <option value="">No shift assigned</option>

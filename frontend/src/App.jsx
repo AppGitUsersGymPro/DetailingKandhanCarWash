@@ -14,6 +14,7 @@ import Services from './pages/Services';
 import ServiceDetail from './pages/Services/Detail';
 import Employees from './pages/Employees';
 import Vendors from './pages/Vendors';
+import Kiosk from './pages/Kiosk';
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="services/:id" element={<ServiceDetail />} />
             <Route path="employees/*" element={<Employees />} />
             <Route path="vendors/*" element={<Vendors />} />
+            <Route path="kiosk" element={<Kiosk />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

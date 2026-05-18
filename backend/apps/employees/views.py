@@ -263,7 +263,10 @@ class SalaryTransactionDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# ── Salary Compute (attendance-based) ─────────────────────────────────────────
+# ── Salary Compute (attendance-based, GymCRM formula) ────────────────────────
+# billable_mins = max(0, worked + overtime − late)
+# hours_pct     = billable_mins / total_scheduled_mins × 100
+# computed      = base_salary × hours_pct / 100
 
 class SalaryComputeView(APIView):
     def get(self, request):
@@ -288,61 +291,171 @@ class SalaryComputeView(APIView):
                 'employee_name': emp.employee_name,
                 'base_salary': str(emp.salary),
                 'computed_salary': str(emp.salary),
-                'expected_hours': 0,
-                'actual_hours': 0,
-                'overtime_hours': 0,
+                'total_scheduled_mins': 0,
+                'total_worked_mins': 0,
+                'total_late_mins': 0,
+                'total_ot_mins': 0,
+                'billable_mins': 0,
+                'hours_pct': 100.0,
                 'working_days_in_month': 0,
                 'shift_hours_per_day': 0,
             })
 
-        # Shift duration in hours
-        start_dt = datetime.combine(date.today(), shift.start_time)
-        end_dt   = datetime.combine(date.today(), shift.end_time)
-        shift_hours_per_day = (end_dt - start_dt).total_seconds() / 3600
-        shift_hrs_dec       = Decimal(str(shift_hours_per_day))
+        # Shift duration in minutes
+        start_dt           = datetime.combine(date.today(), shift.start_time)
+        end_dt             = datetime.combine(date.today(), shift.end_time)
+        shift_mins_per_day = int((end_dt - start_dt).total_seconds() / 60)
 
-        # Count working days in the month based on the shift's working_days config
+        # Count working days this month per shift config
         days_in_month      = calendar.monthrange(year_int, month_int)[1]
         working_days_count = sum(
             1 for d in range(1, days_in_month + 1)
             if date(year_int, month_int, d).weekday() in shift.working_days_list
         )
-        expected_hours = shift_hrs_dec * working_days_count
+        total_scheduled_mins = working_days_count * shift_mins_per_day
 
-        records        = Attendance.objects.filter(employee=emp, date__month=month_int, date__year=year_int)
-        actual_hours   = Decimal('0')
-        overtime_hours = Decimal('0')
-
+        # Sum stored per-record fields (computed in Attendance.save())
+        # half_day records entered without times have worked_minutes=0; credit them half a shift.
+        records           = Attendance.objects.filter(employee=emp, date__month=month_int, date__year=year_int)
+        total_worked_mins = 0
         for r in records:
-            if r.check_in and r.check_out:
-                ci  = datetime.combine(date.today(), r.check_in)
-                co  = datetime.combine(date.today(), r.check_out)
-                hrs = Decimal(str((co - ci).total_seconds() / 3600))
-                actual_hours += hrs
-                if hrs > shift_hrs_dec:
-                    overtime_hours += hrs - shift_hrs_dec
-            elif r.status in ('present', 'late'):
-                actual_hours += shift_hrs_dec
+            if r.worked_minutes > 0:
+                total_worked_mins += r.worked_minutes
             elif r.status == 'half_day':
-                actual_hours += shift_hrs_dec / 2
-            # absent / leave → 0 hours
+                total_worked_mins += shift_mins_per_day // 2
+        total_late_mins   = sum(r.late_minutes     for r in records)
+        total_ot_mins     = sum(r.overtime_minutes for r in records)
 
-        if expected_hours > 0:
-            computed_salary = (actual_hours / expected_hours * emp.salary).quantize(Decimal('0.01'))
+        # Core GymCRM formula
+        billable_mins = max(0, total_worked_mins + total_ot_mins - total_late_mins)
+        if total_scheduled_mins > 0:
+            hours_pct = round(billable_mins / total_scheduled_mins * 100, 1)
         else:
-            computed_salary = emp.salary
+            hours_pct = 100.0
+
+        computed_salary = (
+            Decimal(str(emp.salary)) * Decimal(str(hours_pct)) / Decimal('100')
+        ).quantize(Decimal('0.01'))
 
         return Response({
             'no_shift': False,
             'employee_name': emp.employee_name,
             'base_salary': str(emp.salary),
             'computed_salary': str(computed_salary),
-            'expected_hours': round(float(expected_hours), 2),
-            'actual_hours': round(float(actual_hours), 2),
-            'overtime_hours': round(float(overtime_hours), 2),
+            'total_scheduled_mins': total_scheduled_mins,
+            'total_worked_mins': total_worked_mins,
+            'total_late_mins': total_late_mins,
+            'total_ot_mins': total_ot_mins,
+            'billable_mins': billable_mins,
+            'hours_pct': hours_pct,
             'working_days_in_month': working_days_count,
-            'shift_hours_per_day': round(shift_hours_per_day, 2),
+            'shift_hours_per_day': round(shift_mins_per_day / 60, 2),
         })
+
+
+# ── Employee Calendar (GymCRM-style per-employee monthly view) ────────────────
+
+class EmployeeCalendarView(APIView):
+    def get(self, request, pk):
+        try:
+            emp = Employee.objects.select_related('shift').get(pk=pk)
+        except Employee.DoesNotExist:
+            return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        today = date.today()
+        try:
+            year_int  = int(request.query_params.get('year',  today.year))
+            month_int = int(request.query_params.get('month', today.month))
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid year or month'}, status=status.HTTP_400_BAD_REQUEST)
+
+        days_in_month = calendar.monthrange(year_int, month_int)[1]
+        records       = Attendance.objects.filter(
+            employee=emp, date__year=year_int, date__month=month_int
+        ).order_by('date')
+        record_map = {r.date: r for r in records}
+        shift      = emp.shift
+
+        working_days_in_month = sum(
+            1 for d_num in range(1, days_in_month + 1)
+            if (shift.is_working_day(date(year_int, month_int, d_num)) if shift else True)
+        )
+
+        days_data = []
+        for d_num in range(1, days_in_month + 1):
+            d   = date(year_int, month_int, d_num)
+            rec = record_map.get(d)
+            days_data.append({
+                'date':           str(d),
+                'day':            d_num,
+                'weekday':        d.weekday(),   # 0=Mon … 6=Sun — used directly as grid padding
+                'is_working_day': shift.is_working_day(d) if shift else True,
+                'is_today':       d == today,
+                'is_future':      d > today,
+                'record':         AttendanceSerializer(rec).data if rec else None,
+            })
+
+        counts = {
+            'present': 0, 'absent': 0, 'half_day': 0, 'leave': 0,
+            'late': 0, 'overtime': 0, 'late_overtime': 0, 'auto_absent': 0,
+            'total_worked_mins': 0, 'total_late_mins': 0, 'total_ot_mins': 0,
+            'working_days_in_month': working_days_in_month,
+        }
+        for rec in records:
+            s = rec.status
+            if s in counts:
+                counts[s] = counts[s] + 1
+            counts['total_worked_mins'] += rec.worked_minutes
+            counts['total_late_mins']   += rec.late_minutes
+            counts['total_ot_mins']     += rec.overtime_minutes
+
+        return Response({
+            'employee': EmployeeSerializer(emp).data,
+            'shift':    ShiftSerializer(shift).data if shift else None,
+            'year':     year_int,
+            'month':    month_int,
+            'counts':   counts,
+            'days':     days_data,
+        })
+
+
+# ── Auto Checkout ─────────────────────────────────────────────────────────────
+# Closes any today's records that have check_in but no check_out.
+# Sets check_out = shift end time (or now if shift has not ended yet).
+# Attendance.save() then recomputes worked/late/OT automatically.
+
+class AttendanceAutoCheckoutView(APIView):
+    def post(self, request):
+        today    = date.today()
+        now_time = datetime.now().time().replace(second=0, microsecond=0)
+
+        pending = Attendance.objects.filter(
+            date=today,
+            check_in__isnull=False,
+            check_out__isnull=True,
+        ).select_related('employee__shift')
+
+        updated = []
+        for record in pending:
+            shift = record.employee.shift
+            if shift:
+                # Use shift end time if we are past it; otherwise use now
+                checkout_time = shift.end_time if now_time >= shift.end_time else now_time
+            else:
+                checkout_time = now_time
+
+            record.check_out = checkout_time
+            record.save()   # recomputes worked_mins, late_mins, overtime_mins, status
+            updated.append({
+                'employee_name': record.employee.employee_name,
+                'check_in':      record.check_in.strftime('%H:%M'),
+                'check_out':     record.check_out.strftime('%H:%M'),
+                'status':        record.status,
+                'worked_minutes':   record.worked_minutes,
+                'overtime_minutes': record.overtime_minutes,
+            })
+
+        return Response({'updated': len(updated), 'records': updated})
 
 
 # ── Kiosk Lookup (confirm step before marking attendance) ─────────────────────
@@ -402,7 +515,10 @@ class AttendanceKioskView(APIView):
 
         is_late = False
         if emp.shift and emp.shift.start_time:
-            is_late = now_time > emp.shift.start_time
+            from datetime import timedelta as _td
+            grace_end = (datetime.combine(date.today(), emp.shift.start_time) +
+                         _td(minutes=emp.shift.late_grace_minutes)).time()
+            is_late = now_time > grace_end
 
         try:
             record = Attendance.objects.get(employee=emp, date=today)

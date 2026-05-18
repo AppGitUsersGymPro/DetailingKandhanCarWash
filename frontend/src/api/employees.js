@@ -34,6 +34,12 @@ export const deleteTransaction = (id)     => api.delete(`employees/salary/transa
 // ── Salary Compute (attendance-based) ────────────────────────────────────────
 export const computeSalary = (params) => api.get('employees/salary/compute/', { params }).then(r => r.data);
 
+// ── Employee Calendar (per-employee monthly view) ─────────────────────────────
+export const getEmployeeCalendar = (id, params) => api.get(`employees/${id}/calendar/`, { params }).then(r => r.data);
+
 // ── Kiosk ─────────────────────────────────────────────────────────────────────
-export const kioskLookup  = (data) => api.post('employees/attendance/kiosk/lookup/', data).then(r => r.data);
-export const kioskCheckIn = (data) => api.post('employees/attendance/kiosk/', data).then(r => r.data);
+export const kioskLookup    = (data) => api.post('employees/attendance/kiosk/lookup/', data).then(r => r.data);
+export const kioskCheckIn   = (data) => api.post('employees/attendance/kiosk/', data).then(r => r.data);
+
+// ── Auto Checkout ─────────────────────────────────────────────────────────────
+export const autoCheckout   = ()     => api.post('employees/attendance/auto-checkout/').then(r => r.data);

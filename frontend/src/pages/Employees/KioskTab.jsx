@@ -40,6 +40,22 @@ function getInitials(name) {
   return (name || '?').split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
+function fmt12(timeStr) {
+  if (!timeStr) return '';
+  const [hStr, mStr] = timeStr.split(':');
+  const h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m} ${suffix}`;
+}
+
+function todayDateStr() {
+  return new Date().toLocaleDateString('en-IN', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  });
+}
+
 function avatarColor(name) {
   const i = (name || '').charCodeAt(0) % AVATAR_COLORS.length;
   return AVATAR_COLORS[i];
@@ -219,13 +235,15 @@ export default function KioskTab() {
                   {person.check_in_time && (
                     <div className="text-center">
                       <div className="text-gray-500 mb-0.5">Checked in</div>
-                      <div className="font-mono font-semibold text-emerald-400 text-base">{person.check_in_time}</div>
+                      <div className="font-mono font-semibold text-emerald-400 text-base">{fmt12(person.check_in_time)}</div>
+                      <div className="text-gray-600 text-[10px] mt-0.5">{todayDateStr()}</div>
                     </div>
                   )}
                   {person.check_out_time && (
                     <div className="text-center">
                       <div className="text-gray-500 mb-0.5">Checked out</div>
-                      <div className="font-mono font-semibold text-blue-400 text-base">{person.check_out_time}</div>
+                      <div className="font-mono font-semibold text-blue-400 text-base">{fmt12(person.check_out_time)}</div>
+                      <div className="text-gray-600 text-[10px] mt-0.5">{todayDateStr()}</div>
                     </div>
                   )}
                 </div>
@@ -263,7 +281,10 @@ export default function KioskTab() {
               </div>
               <h2 className={`text-3xl font-bold mb-2 ${style.color}`}>{style.title}</h2>
               <p className="text-xl text-gray-100 font-semibold mb-1">{result.employee_name}</p>
-              <p className="font-mono text-3xl text-gray-200 font-bold my-4">{result.time}</p>
+              <div className="my-4">
+                <p className="font-mono text-3xl text-gray-200 font-bold">{fmt12(result.time)}</p>
+                <p className="text-sm text-gray-500 mt-1">{todayDateStr()}</p>
+              </div>
               <p className="text-sm text-gray-400 mb-6">{result.message}</p>
 
               <div className="flex items-center justify-center gap-2 text-xs text-gray-600">
