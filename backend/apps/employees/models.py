@@ -115,6 +115,7 @@ class Employee(models.Model):
     )
 
     status                = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    role                  = models.CharField(max_length=100, blank=True, null=True)
 
     # Employee's currently assigned shift (SET_NULL so deleting a shift doesn't delete employee)
     shift                 = models.ForeignKey(

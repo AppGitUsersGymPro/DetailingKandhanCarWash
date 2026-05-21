@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Plus, UserCog, Search, Pencil, Trash2,
   Phone, Mail, MapPin, Clock, Users, Briefcase,
@@ -23,9 +23,9 @@ const TYPE_LABEL = {
 };
 
 const STATUS_LABEL = {
-  active:   { label: 'Active',    variant: 'green'  },
-  inactive: { label: 'Inactive',  variant: 'red'    },
-  on_leave: { label: 'On Leave',  variant: 'yellow' },
+  active:   { label: 'Active',   variant: 'green'  },
+  inactive: { label: 'Inactive', variant: 'red'    },
+  on_leave: { label: 'On Leave', variant: 'yellow' },
 };
 
 const TYPE_LEFT_BORDER = {
@@ -52,6 +52,13 @@ const SORT_OPTIONS = [
   { value: 'salary_asc',  label: 'Salary ↑' },
 ];
 
+// Fix #4 — defined outside component so the useEffect inside modal never closes over a stale value
+const EMPTY_FORM = {
+  employee_name: '', employee_phone_number: '', employee_email: '',
+  employee_address: '', employee_type: 'full_time', status: 'active',
+  dob: '', joining_date: '', salary: '', shift: '', role: '',
+};
+
 function getInitials(name) {
   return (name || '?').split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
 }
@@ -68,10 +75,11 @@ const fmtSalary = (n) => {
   return `₹${v.toLocaleString('en-IN')}`;
 };
 
+// Fix #1 — append T00:00:00 so date strings parse as local time, not UTC midnight
 function getTenure(joiningDate) {
   if (!joiningDate) return null;
   const now    = new Date();
-  const joined = new Date(joiningDate);
+  const joined = new Date(joiningDate + 'T00:00:00');
   const diffMs = now - joined;
   if (diffMs < 0) return null;
   const totalDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -85,12 +93,12 @@ function getTenure(joiningDate) {
 
 function isBirthdayThisMonth(dob) {
   if (!dob) return false;
-  return new Date(dob).getMonth() === new Date().getMonth();
+  return new Date(dob + 'T00:00:00').getMonth() === new Date().getMonth();
 }
 
 function isAnniversaryThisMonth(joiningDate) {
   if (!joiningDate) return false;
-  const joined = new Date(joiningDate);
+  const joined = new Date(joiningDate + 'T00:00:00');
   const now    = new Date();
   return joined.getMonth() === now.getMonth() && joined.getFullYear() < now.getFullYear();
 }
@@ -201,13 +209,14 @@ function NoShiftBanner({ employees, onFilter }) {
   );
 }
 
+// Fix #9 — banner label was "New hires this month" but logic uses 30-day window, not calendar month
 function NewJoinersBanner({ employees }) {
   const newHires = employees.filter((e) => getTenure(e.joining_date)?.isNew);
   if (newHires.length === 0) return null;
   return (
     <div className="bg-emerald-900/10 border border-emerald-700/20 rounded-xl px-4 py-3">
       <p className="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1.5">
-        <CalendarPlus size={13} /> New hires this month
+        <CalendarPlus size={13} /> Recently joined · last 30 days
       </p>
       <div className="flex flex-wrap gap-2">
         {newHires.map((e) => (
@@ -233,9 +242,11 @@ function EmployeeCard({ emp, onEdit, onDelete }) {
   const bday       = isBirthdayThisMonth(emp.dob);
   const anniv      = isAnniversaryThisMonth(emp.joining_date);
   const borderCls  = TYPE_LEFT_BORDER[emp.employee_type] || 'border-l-gray-600/40';
+  // Fix #11 — dim cards for inactive / on-leave employees
+  const dimCls     = emp.status !== 'active' ? 'opacity-60' : '';
 
   return (
-    <div className={`bg-bg-card border border-border border-l-4 ${borderCls} rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg hover:shadow-black/20 hover:border-accent/30`}>
+    <div className={`bg-bg-card border border-border border-l-4 ${borderCls} rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg hover:shadow-black/20 hover:border-accent/30 ${dimCls}`}>
 
       {/* Header */}
       <div className="p-4 flex items-start gap-3">
@@ -260,6 +271,9 @@ function EmployeeCard({ emp, onEdit, onDelete }) {
               <span title="Work anniversary this month"><Star size={13} className="text-yellow-400 shrink-0" /></span>
             )}
           </div>
+          {emp.role && (
+            <div className="text-xs text-gray-400 mt-0.5 truncate">{emp.role}</div>
+          )}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             <Badge variant={t.variant}>{t.label}</Badge>
             {emp.status !== 'active' && <Badge variant={st.variant}>{st.label}</Badge>}
@@ -355,19 +369,21 @@ function EmployeeCard({ emp, onEdit, onDelete }) {
 
 export default function EmployeesTab() {
   const toast = useToast();
-  const [loading, setLoading]       = useState(true);
-  const [employees, setEmployees]   = useState([]);
-  const [search, setSearch]         = useState('');
-  const [filterType, setFilterType] = useState('');
-  const [sort, setSort]             = useState('name_asc');
-  const [modal, setModal]           = useState(null);
-  const [confirmDel, setConfirmDel] = useState(null);
-  const [delLoading, setDelLoading] = useState(false);
+  const [loading, setLoading]           = useState(true);
+  const [employees, setEmployees]       = useState([]);
+  const [search, setSearch]             = useState('');
+  const [filterType, setFilterType]     = useState('');
+  const [filterStatus, setFilterStatus] = useState('');   // Fix #6
+  const [sort, setSort]                 = useState('name_asc');
+  const [modal, setModal]               = useState(null);
+  const [confirmDel, setConfirmDel]     = useState(null);
+  const [delLoading, setDelLoading]     = useState(false);
 
+  // Fix #10 — load all employees; filtering/searching is done client-side
   const load = async () => {
     setLoading(true);
     try {
-      const data = await listEmployees(search ? { name: search } : undefined);
+      const data = await listEmployees();
       setEmployees(Array.isArray(data) ? data : (data.results || []));
     } catch (err) {
       toast.error(extractError(err));
@@ -376,17 +392,10 @@ export default function EmployeesTab() {
     }
   };
 
-  const isFirstRender = useRef(true);
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      load();
-      return;
-    }
-    const t = setTimeout(load, 300);
-    return () => clearTimeout(t);
+    load();
     // eslint-disable-next-line
-  }, [search]);
+  }, []);
 
   const onDelete = async () => {
     if (!confirmDel) return;
@@ -405,14 +414,35 @@ export default function EmployeesTab() {
 
   const noShiftCount = employees.filter((e) => !e.shift).length;
 
+  // Fix #10 — client-side search across name, code, and phone
   const filtered = useMemo(() => {
-    let result = filterType === 'no_shift'
-      ? employees.filter((e) => !e.shift)
-      : filterType
-        ? employees.filter((e) => e.employee_type === filterType)
-        : employees;
+    let result = employees;
+
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter((e) =>
+        e.employee_name.toLowerCase().includes(q) ||
+        (e.employee_code || '').toLowerCase().includes(q) ||
+        (e.employee_phone_number || '').includes(q)
+      );
+    }
+
+    // Fix #6 — status filter
+    if (filterStatus) {
+      result = result.filter((e) => e.status === filterStatus);
+    }
+
+    if (filterType === 'no_shift') {
+      result = result.filter((e) => !e.shift);
+    } else if (filterType) {
+      result = result.filter((e) => e.employee_type === filterType);
+    }
+
     return sortEmployees(result, sort);
-  }, [employees, filterType, sort]);
+  }, [employees, search, filterType, filterStatus, sort]);
+
+  const clearFilters = () => { setFilterType(''); setFilterStatus(''); setSearch(''); };
+  const hasFilters   = !!(search || filterType || filterStatus);
 
   return (
     <div className="space-y-5">
@@ -435,19 +465,21 @@ export default function EmployeesTab() {
 
       {/* Filter + sort toolbar */}
       <div className="flex flex-wrap items-center gap-3">
+        {/* Fix #10 — search hint updated to reflect multi-field search */}
         <div className="relative flex-1 min-w-[200px]">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
           <Input
-            placeholder="Search by name…"
+            placeholder="Search by name, code, or phone…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-8 text-sm"
           />
         </div>
 
+        {/* Type filters */}
         <div className="flex items-center gap-1 flex-wrap">
           {[
-            { key: '',           label: 'All' },
+            { key: '',           label: 'All types' },
             { key: 'full_time',  label: 'Full-time' },
             { key: 'part_time',  label: 'Part-time' },
             { key: 'contractor', label: 'Contractor' },
@@ -468,6 +500,28 @@ export default function EmployeesTab() {
               {count > 0 && (
                 <span className={`font-bold ${filterType === key ? '' : 'text-amber-400'}`}>{count}</span>
               )}
+            </button>
+          ))}
+        </div>
+
+        {/* Fix #6 — status filters */}
+        <div className="flex items-center gap-1 flex-wrap border-l border-border pl-3">
+          {[
+            { key: '',         label: 'All status' },
+            { key: 'active',   label: 'Active' },
+            { key: 'inactive', label: 'Inactive' },
+            { key: 'on_leave', label: 'On Leave' },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setFilterStatus(key)}
+              className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                filterStatus === key
+                  ? 'bg-accent/20 text-accent border-accent/50'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-border'
+              }`}
+            >
+              {label}
             </button>
           ))}
         </div>
@@ -501,15 +555,13 @@ export default function EmployeesTab() {
         <EmptyState
           icon={UserCog}
           title="No employees found"
-          message={search || filterType ? 'Try a different search or filter.' : 'Add your first team member to get started.'}
-          action={!search && !filterType && (
-            <Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Employee</Button>
-          )}
+          message="Add your first team member to get started."
+          action={<Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Employee</Button>}
         />
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-500 text-sm">
           No employees match your filters.{' '}
-          <button onClick={() => { setFilterType(''); setSearch(''); }} className="text-accent hover:underline">
+          <button onClick={clearFilters} className="text-accent hover:underline">
             Clear filters
           </button>
         </div>
@@ -526,7 +578,8 @@ export default function EmployeesTab() {
         </div>
       )}
 
-      <EmployeeFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} employees={employees} />
+      {/* Fix #2 — removed unused `employees` prop from EmployeeFormModal */}
+      <EmployeeFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} />
       <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
@@ -549,29 +602,28 @@ function SectionLabel({ children }) {
 
 // ── Employee Form Modal ───────────────────────────────────────────────────────
 
-function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
+// Fix #2 — removed unused `employees` prop
+function EmployeeFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
-  const empty = {
-    employee_name: '', employee_phone_number: '', employee_email: '',
-    employee_address: '', employee_type: 'full_time', status: 'active',
-    dob: '', joining_date: '', salary: '', shift: '',
-  };
-  const [form, setForm]             = useState(empty);
+  // Fix #4 — use the stable EMPTY_FORM constant defined at module level
+  const [form, setForm]             = useState(EMPTY_FORM);
   const [shifts, setShifts]         = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors]         = useState({});
 
+  // Fix #8 — refresh shifts every time the modal opens
   useEffect(() => {
+    if (!modal) return;
     listShifts()
       .then((data) => setShifts(Array.isArray(data) ? data : (data.results || [])))
       .catch(() => {});
-  }, []);
+  }, [modal]);
 
   useEffect(() => {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
-        employee_code:         modal.data.employee_code         || '',  // editable on edit only
+        employee_code:         modal.data.employee_code         || '',
         employee_name:         modal.data.employee_name         || '',
         employee_phone_number: modal.data.employee_phone_number || '',
         employee_email:        modal.data.employee_email        || '',
@@ -582,12 +634,12 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
         joining_date:          modal.data.joining_date          || '',
         salary:                modal.data.salary                || '',
         shift:                 modal.data.shift                 || '',
+        role:                  modal.data.role                  || '',
       });
     } else {
-      setForm({ ...empty });
+      setForm({ ...EMPTY_FORM });
     }
     setErrors({});
-    // eslint-disable-next-line
   }, [modal]);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -597,10 +649,15 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
     const eMap = {};
     if (modal.mode === 'edit' && !form.employee_code?.trim()) eMap.employee_code = 'Required';
     if (!form.employee_name.trim())         eMap.employee_name         = 'Required';
-    if (!form.employee_phone_number.trim()) eMap.employee_phone_number = 'Required';
-    if (!form.employee_email.trim())        eMap.employee_email        = 'Required';
-    if (!form.employee_address.trim())      eMap.employee_address      = 'Required';
-    if (!form.joining_date)                 eMap.joining_date          = 'Required';
+    // Fix #7 — phone validation: must be non-empty and at least 10 digits
+    if (!form.employee_phone_number.trim()) {
+      eMap.employee_phone_number = 'Required';
+    } else if (form.employee_phone_number.replace(/\D/g, '').length < 10) {
+      eMap.employee_phone_number = 'Must be at least 10 digits';
+    }
+    if (!form.employee_email.trim())   eMap.employee_email   = 'Required';
+    if (!form.employee_address.trim()) eMap.employee_address = 'Required';
+    if (!form.joining_date)            eMap.joining_date     = 'Required';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
     setSubmitting(true);
@@ -611,6 +668,7 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
         dob:          form.dob          || null,
         joining_date: form.joining_date || null,
         shift:        form.shift        || null,
+        role:         form.role         || null,   // Fix #3 — send null not empty string
       };
       if (modal.mode === 'create') {
         delete payload.employee_code;  // backend auto-generates from PK
@@ -675,7 +733,12 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
           <SectionLabel>Contact</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="Phone" required error={errors.employee_phone_number}>
-              <Input placeholder="e.g. 9876543210" value={form.employee_phone_number} onChange={set('employee_phone_number')} />
+              <Input
+                placeholder="e.g. 9876543210"
+                value={form.employee_phone_number}
+                onChange={set('employee_phone_number')}
+                inputMode="numeric"
+              />
             </Field>
             <Field label="Email" required error={errors.employee_email}>
               <Input type="email" placeholder="e.g. ravi@email.com" value={form.employee_email} onChange={set('employee_email')} />
@@ -691,6 +754,9 @@ function EmployeeFormModal({ modal, onClose, onSaved, employees = [] }) {
         <div>
           <SectionLabel>Employment Details</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Role">
+              <Input placeholder="e.g. Detailer, Manager, Receptionist" value={form.role} onChange={set('role')} />
+            </Field>
             <Field label="Employee Type">
               <Select value={form.employee_type} onChange={set('employee_type')}>
                 <option value="full_time">Full-time</option>
