@@ -1,15 +1,14 @@
-from django.shortcuts import render
-# Create your views here.
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import (JobCard, JobCardService, JobCardEmployee)
+from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment
 from apps.customers.models import Customer, CustomerAsset
 from .serializers import (
     JobCardSerializer,
     JobCardServiceSerializer,
     JobCardEmployeeSerializer,
+    JobCardPaymentSerializer,
     FullJobCardCreateSerializer,
 )
 from apps.services.models import ServiceProduct
@@ -236,7 +235,43 @@ class FetchVehicleType(APIView):
             return JobCard.objects.filter(customer_asset__vehicle_type=vehicle_type)
         except JobCard.DoesNotExist:
             return None
+
     def get(self, request, vehicle_type):
         jobcards_count = self.get_object(vehicle_type).count()
-        return Response({'vehicle_type': vehicle_type, 'count': jobcards_count} )
+        return Response({'vehicle_type': vehicle_type, 'count': jobcards_count})
+
+
+# ─── JobCard Payments ─────────────────────────────────
+
+class JobCardPaymentListCreateView(APIView):
+    def get(self, request, jobcard_pk):
+        try:
+            jobcard = JobCard.objects.get(pk=jobcard_pk)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = JobCardPaymentSerializer(jobcard.payments.all(), many=True)
+        return Response(serializer.data)
+
+    def post(self, request, jobcard_pk):
+        try:
+            jobcard = JobCard.objects.get(pk=jobcard_pk)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Job card not found'}, status=status.HTTP_404_NOT_FOUND)
+        data = request.data.copy()
+        data['job_card'] = jobcard.id
+        serializer = JobCardPaymentSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class JobCardPaymentDeleteView(APIView):
+    def delete(self, request, pk):
+        try:
+            payment = JobCardPayment.objects.get(pk=pk)
+        except JobCardPayment.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        payment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
     

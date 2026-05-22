@@ -1,10 +1,11 @@
+from decimal import Decimal
 from rest_framework import serializers
 from django.db import transaction
 from django.db.models import Q
 
 from apps.customers.models import Customer, CustomerAsset, normalize_phone
 from apps.services.models import Service
-from .models import JobCard, JobCardService, JobCardEmployee
+from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment
 
 
 class JobCardEmployeeSerializer(serializers.ModelSerializer):
@@ -30,35 +31,75 @@ class JobCardServiceSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+class JobCardPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobCardPayment
+        fields = '__all__'
+
+
 class JobCardSerializer(serializers.ModelSerializer):
     job_card_services = JobCardServiceSerializer(many=True, read_only=True)
-    vehicle_number = serializers.CharField(
-        source='customer_asset.vehicle_number',
-        read_only=True
-    )
-    vehicle_type = serializers.CharField(
-        source='customer_asset.vehicle_type',
-        read_only=True
-    )
-    customer_name = serializers.CharField(
-        source='customer_asset.customer.customer_name',
-        read_only=True
-    )
-    phone_number = serializers.CharField(
-        source='customer_asset.customer.phone_number',
-        read_only=True
-    )
+    payments          = JobCardPaymentSerializer(many=True, read_only=True)
+    vehicle_number    = serializers.CharField(source='customer_asset.vehicle_number', read_only=True)
+    vehicle_type      = serializers.CharField(source='customer_asset.vehicle_type', read_only=True)
+    customer_name     = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True)
+    phone_number      = serializers.CharField(source='customer_asset.customer.phone_number', read_only=True)
+
+    base_amount    = serializers.SerializerMethodField()
+    gst_amount     = serializers.SerializerMethodField()
+    total_amount   = serializers.SerializerMethodField()
+    paid_amount    = serializers.SerializerMethodField()
+    outstanding    = serializers.SerializerMethodField()
+    payment_status = serializers.SerializerMethodField()
 
     class Meta:
         model = JobCard
         fields = '__all__'
 
+    def _financials(self, obj):
+        base = sum(s.price_at_time for s in obj.job_card_services.all())
+        gst  = (base * obj.gst_percent / Decimal('100')).quantize(Decimal('0.01'))
+        total = base + gst
+        paid  = sum(p.amount for p in obj.payments.all())
+        return base, gst, total, paid
+
+    def get_base_amount(self, obj):
+        base, *_ = self._financials(obj)
+        return str(base)
+
+    def get_gst_amount(self, obj):
+        _, gst, *_ = self._financials(obj)
+        return str(gst)
+
+    def get_total_amount(self, obj):
+        _, _, total, _ = self._financials(obj)
+        return str(total)
+
+    def get_paid_amount(self, obj):
+        _, _, _, paid = self._financials(obj)
+        return str(paid)
+
+    def get_outstanding(self, obj):
+        _, _, total, paid = self._financials(obj)
+        return str(total - paid)
+
+    def get_payment_status(self, obj):
+        _, _, total, paid = self._financials(obj)
+        if total <= 0:
+            return 'unpaid'
+        if paid >= total:
+            return 'paid'
+        if paid > 0:
+            return 'partial'
+        return 'unpaid'
+
+
 class CustomerInputSerializer(serializers.Serializer):
-    is_new = serializers.BooleanField()
-    id = serializers.IntegerField(required=False, allow_null=True)
+    is_new        = serializers.BooleanField()
+    id            = serializers.IntegerField(required=False, allow_null=True)
     customer_name = serializers.CharField(required=False, allow_blank=True)
-    phone_number = serializers.CharField(required=False, allow_blank=True)
-    email = serializers.EmailField(required=False, allow_blank=True)
+    phone_number  = serializers.CharField(required=False, allow_blank=True)
+    email         = serializers.EmailField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         if attrs['is_new']:
@@ -72,8 +113,8 @@ class CustomerInputSerializer(serializers.Serializer):
 
 
 class VehicleInputSerializer(serializers.Serializer):
-    is_new = serializers.BooleanField()
-    id = serializers.IntegerField(required=False, allow_null=True)
+    is_new       = serializers.BooleanField()
+    id           = serializers.IntegerField(required=False, allow_null=True)
     vehicle_number = serializers.CharField()
     vehicle_name = serializers.CharField(required=False, allow_blank=True)
     vehicle_type = serializers.CharField(required=False, allow_blank=True)
@@ -88,18 +129,21 @@ class VehicleInputSerializer(serializers.Serializer):
 
 
 class JobCardCoreSerializer(serializers.Serializer):
-    job_card_number = serializers.CharField()
-    job_card_date = serializers.DateField()
-    vehicle_kilometers = serializers.DecimalField(max_digits=10, decimal_places=2)
-    vehicle_entry_time = serializers.DateTimeField()
+    job_card_number           = serializers.CharField()
+    job_card_date             = serializers.DateField()
+    vehicle_kilometers        = serializers.DecimalField(max_digits=10, decimal_places=2)
+    vehicle_entry_time        = serializers.DateTimeField()
     vehicle_expected_exit_time = serializers.DateTimeField()
-    complaints = serializers.CharField(allow_blank=True, required=False)
+    complaints                = serializers.CharField(allow_blank=True, required=False)
+    gst_percent               = serializers.DecimalField(
+        max_digits=5, decimal_places=2, required=False, default=Decimal('18.00')
+    )
 
 
 class FullJobCardCreateSerializer(serializers.Serializer):
     job_card = JobCardCoreSerializer()
     customer = CustomerInputSerializer()
-    vehicle = VehicleInputSerializer()
+    vehicle  = VehicleInputSerializer()
     services = serializers.ListField(
         child=serializers.IntegerField(),
         allow_empty=False,
@@ -107,14 +151,14 @@ class FullJobCardCreateSerializer(serializers.Serializer):
 
     @transaction.atomic
     def create(self, validated_data):
-        c = validated_data['customer']
-        v = validated_data['vehicle']
+        c  = validated_data['customer']
+        v  = validated_data['vehicle']
         jc = validated_data['job_card']
 
         if c['is_new']:
-            phone = normalize_phone(c['phone_number'])
-            email = c.get('email', '')
-            lookup = Q(phone_number=phone)
+            phone    = normalize_phone(c['phone_number'])
+            email    = c.get('email', '')
+            lookup   = Q(phone_number=phone)
             if email:
                 lookup |= Q(email__iexact=email)
             existing = Customer.objects.filter(lookup).first()

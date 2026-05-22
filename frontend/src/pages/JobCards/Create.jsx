@@ -60,6 +60,7 @@ export default function JobCardCreate() {
   const [services, setServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
+  const [gstPercent, setGstPercent] = useState('18');
 
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
   const updateCustomer = (k, v) => setCustomer((f) => ({ ...f, [k]: v }));
@@ -144,9 +145,11 @@ export default function JobCardCreate() {
     );
   };
 
-  const totalPrice = services
+  const basePrice = services
     .filter((s) => selectedServiceIds.includes(s.id))
     .reduce((sum, s) => sum + Number(s.service_price || 0), 0);
+  const gstAmount = basePrice * Number(gstPercent || 0) / 100;
+  const totalPrice = basePrice + gstAmount;
 
   const submit = async () => {
     if (selectedServiceIds.length === 0) {
@@ -163,6 +166,7 @@ export default function JobCardCreate() {
           vehicle_entry_time: new Date(jobCard.vehicle_entry_time).toISOString(),
           vehicle_expected_exit_time: new Date(jobCard.vehicle_expected_exit_time).toISOString(),
           complaints: jobCard.complaints,
+          gst_percent: Number(gstPercent || 18),
         },
         customer: vehicleMatch
           ? {
@@ -253,7 +257,11 @@ export default function JobCardCreate() {
             loading={loadingServices}
             selectedIds={selectedServiceIds}
             onToggle={toggleService}
+            basePrice={basePrice}
+            gstPercent={gstPercent}
+            gstAmount={gstAmount}
             totalPrice={totalPrice}
+            onGstChange={setGstPercent}
             matchedCustomer={vehicleMatch?.customer}
             matchedVehicle={vehicleMatch?.vehicle}
           />
@@ -469,7 +477,7 @@ function Step2({ customer, vehicle, updateCustomer, updateVehicle, errors, match
   );
 }
 
-function Step3({ services, loading, selectedIds, onToggle, totalPrice, matchedCustomer, matchedVehicle }) {
+function Step3({ services, loading, selectedIds, onToggle, basePrice, gstPercent, gstAmount, totalPrice, onGstChange, matchedCustomer, matchedVehicle }) {
   if (loading) return <Loading label="Loading services..." />;
   return (
     <div className="space-y-4">
@@ -527,13 +535,32 @@ function Step3({ services, loading, selectedIds, onToggle, totalPrice, matchedCu
         )}
       </div>
 
-      <div className="flex items-center justify-between p-3 rounded-md bg-bg-elev border border-border">
-        <span className="text-sm text-gray-300">
-          {selectedIds.length} service{selectedIds.length === 1 ? '' : 's'} selected
-        </span>
-        <span className="text-lg font-semibold text-gray-100">
-          Total: ₹{totalPrice.toFixed(2)}
-        </span>
+      {/* GST + price summary */}
+      <div className="rounded-md bg-bg-elev border border-border p-4 space-y-2 text-sm">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400">{selectedIds.length} service{selectedIds.length === 1 ? '' : 's'} selected</span>
+          <span className="text-gray-300">Base: ₹{basePrice.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <label className="text-gray-400 shrink-0">GST %</label>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            value={gstPercent}
+            onChange={e => onGstChange(e.target.value)}
+            className="w-24 bg-bg border border-border rounded-md px-3 py-1.5 text-sm text-gray-100 text-right focus:outline-none focus:border-accent"
+          />
+        </div>
+        <div className="flex items-center justify-between text-gray-400">
+          <span>GST Amount</span>
+          <span>₹{gstAmount.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center justify-between border-t border-border pt-2">
+          <span className="font-semibold text-gray-100">Total</span>
+          <span className="text-lg font-semibold text-gray-100">₹{totalPrice.toFixed(2)}</span>
+        </div>
       </div>
     </div>
   );

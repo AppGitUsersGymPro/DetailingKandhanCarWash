@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import Badge from '../../components/Badge';
 import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
-import { Field, Select } from '../../components/Field';
+import { Field, Input, Select } from '../../components/Field';
 import { useToast } from '../../components/Toast';
 import {
   getJobCard,
@@ -17,11 +17,12 @@ import {
   removeJobCardService,
   addJobCardServiceEmployee,
   removeJobCardServiceEmployee,
+  addJobCardPayment,
+  removeJobCardPayment,
 } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
-import { jobCardTotal } from '../../utils/jobcard';
 
 const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -35,10 +36,12 @@ export default function JobCardDetail() {
   const [employees, setEmployees] = useState([]);
 
   const [serviceModal, setServiceModal] = useState(false);
-  const [employeeModal, setEmployeeModal] = useState(null); // serviceLinkId
+  const [employeeModal, setEmployeeModal] = useState(null);
+  const [paymentModal, setPaymentModal] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRemoveService, setConfirmRemoveService] = useState(null);
+  const [confirmRemovePayment, setConfirmRemovePayment] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   const load = async () => {
@@ -111,6 +114,18 @@ export default function JobCardDetail() {
       await removeJobCardService(confirmRemoveService);
       toast.success('Service removed');
       setConfirmRemoveService(null);
+      await reload();
+    } catch (err) {
+      toast.error(extractError(err));
+    }
+  };
+
+  const onRemovePayment = async () => {
+    if (!confirmRemovePayment) return;
+    try {
+      await removeJobCardPayment(confirmRemovePayment);
+      toast.success('Payment removed');
+      setConfirmRemovePayment(null);
       await reload();
     } catch (err) {
       toast.error(extractError(err));
@@ -241,13 +256,62 @@ export default function JobCardDetail() {
             </dl>
           </div>
 
+          {/* Billing card */}
           <div className="bg-bg-card border border-border rounded-xl p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-400">Total</span>
-              <span className="text-2xl font-semibold text-gray-100 flex items-center">
-                <IndianRupee size={18} />{jobCardTotal(job).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
+                <IndianRupee size={16} /> Billing
+              </h2>
+              <button
+                onClick={() => setPaymentModal(true)}
+                className="flex items-center gap-1 text-xs text-accent hover:underline"
+              >
+                <Plus size={12} /> Add Payment
+              </button>
             </div>
+            <dl className="space-y-2 text-sm mb-4">
+              <div className="flex justify-between">
+                <dt className="text-gray-500">Base Amount</dt>
+                <dd className="text-gray-200">{formatCurrency(job.base_amount)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-gray-500">GST ({job.gst_percent}%)</dt>
+                <dd className="text-gray-200">{formatCurrency(job.gst_amount)}</dd>
+              </div>
+              <div className="flex justify-between border-t border-border pt-2">
+                <dt className="text-gray-200 font-medium">Total</dt>
+                <dd className="text-gray-100 font-semibold">{formatCurrency(job.total_amount)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-emerald-400">Paid</dt>
+                <dd className="text-emerald-400 font-medium">{formatCurrency(job.paid_amount)}</dd>
+              </div>
+              <div className="flex justify-between border-t border-border pt-2">
+                <dt className="text-yellow-400 font-medium">Outstanding</dt>
+                <dd className="text-yellow-400 font-semibold">{formatCurrency(job.outstanding)}</dd>
+              </div>
+            </dl>
+            {/* Payment list */}
+            {(job.payments || []).length > 0 && (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-xs text-gray-500 font-medium mb-2">Payments</p>
+                {job.payments.map(p => (
+                  <div key={p.id} className="flex items-center justify-between text-xs">
+                    <div className="min-w-0">
+                      <span className="text-emerald-300 font-medium">{formatCurrency(p.amount)}</span>
+                      <span className="text-gray-500 ml-2">{p.payment_date}</span>
+                      <span className="text-gray-600 ml-2 capitalize">{p.payment_method}</span>
+                    </div>
+                    <button
+                      onClick={() => setConfirmRemovePayment(p.id)}
+                      className="text-gray-600 hover:text-red-400 ml-2 shrink-0"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -283,6 +347,23 @@ export default function JobCardDetail() {
         onConfirm={onRemoveService}
         title="Remove this service?"
         message="The service will be removed from this job card."
+        confirmText="Remove"
+      />
+
+      <AddPaymentModal
+        open={paymentModal}
+        onClose={() => setPaymentModal(false)}
+        jobCardId={id}
+        onAdded={reload}
+        outstanding={job.outstanding}
+      />
+
+      <ConfirmDialog
+        open={!!confirmRemovePayment}
+        onClose={() => setConfirmRemovePayment(null)}
+        onConfirm={onRemovePayment}
+        title="Remove this payment?"
+        message="This payment record will be permanently deleted."
         confirmText="Remove"
       />
     </div>
@@ -346,6 +427,87 @@ function AddServiceModal({ open, onClose, services, existingIds, onAdded, jobCar
       {available.length === 0 && (
         <p className="text-xs text-gray-500 mt-3">All services have already been added.</p>
       )}
+    </Modal>
+  );
+}
+
+function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding }) {
+  const toast = useToast();
+  const [form, setForm] = useState({ amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'cash', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) setForm({ amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'cash', notes: '' });
+  }, [open]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.amount || isNaN(Number(form.amount)) || Number(form.amount) <= 0) {
+      toast.error('Enter a valid amount');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await addJobCardPayment(jobCardId, {
+        amount: Number(form.amount),
+        payment_date: form.payment_date,
+        payment_method: form.payment_method,
+        notes: form.notes,
+      });
+      toast.success('Payment recorded');
+      onAdded();
+      onClose();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Record Payment"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button variant="success" onClick={submit} loading={submitting}>Record</Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {outstanding && Number(outstanding) > 0 && (
+          <p className="text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-800 rounded-md px-3 py-2">
+            Outstanding: ₹{Number(outstanding).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </p>
+        )}
+        <Field label="Amount (₹)" required>
+          <Input
+            type="number"
+            step="0.01"
+            min="0.01"
+            placeholder="Enter amount"
+            value={form.amount}
+            onChange={e => upd('amount', e.target.value)}
+          />
+        </Field>
+        <Field label="Payment Date" required>
+          <Input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} />
+        </Field>
+        <Field label="Payment Method">
+          <Select value={form.payment_method} onChange={e => upd('payment_method', e.target.value)}>
+            {[['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card'], ['netbanking', 'Net Banking'], ['cheque', 'Cheque'], ['other', 'Other']].map(([v, l]) => (
+              <option key={v} value={v}>{l}</option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Notes">
+          <Input placeholder="Optional note" value={form.notes} onChange={e => upd('notes', e.target.value)} />
+        </Field>
+      </div>
     </Modal>
   );
 }

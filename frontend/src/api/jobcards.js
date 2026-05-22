@@ -14,3 +14,7 @@ export const removeJobCardService = (serviceLinkId) => api.delete(`jobcards/serv
 export const listJobCardServiceEmployees = (serviceLinkId) => api.get(`jobcards/services/${serviceLinkId}/employees/`).then(r => r.data);
 export const addJobCardServiceEmployee = (serviceLinkId, data) => api.post(`jobcards/services/${serviceLinkId}/employees/`, data).then(r => r.data);
 export const removeJobCardServiceEmployee = (empLinkId) => api.delete(`jobcards/services/employees/${empLinkId}/`).then(r => r.data);
+
+export const listJobCardPayments = (id) => api.get(`jobcards/${id}/payments/`).then(r => r.data);
+export const addJobCardPayment = (id, data) => api.post(`jobcards/${id}/payments/`, data).then(r => r.data);
+export const removeJobCardPayment = (paymentId) => api.delete(`jobcards/payments/${paymentId}/`).then(r => r.data);
