@@ -237,6 +237,9 @@ class Attendance(models.Model):
                 self.status = 'overtime'
             else:
                 self.status = 'present'
+        elif not self.check_in and self.status not in MANUAL_STATUSES:
+            # check_in was cleared — reset to neutral so stale computed status doesn't linger
+            self.status = 'present'
 
         super().save(*args, **kwargs)
 
@@ -255,6 +258,9 @@ class SalaryAdvance(models.Model):
 
     employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='salary_advances')
     date     = models.DateField()
+
+    # Which month's salary this advance will be deducted from (stored as first of month)
+    salary_month = models.DateField(null=True, blank=True)
 
     # #10 — Prevent negative amount
     amount   = models.DecimalField(
@@ -307,6 +313,10 @@ class SalaryTransaction(models.Model):
         max_digits=10, decimal_places=2, default=Decimal('0.00'),
         validators=[MinValueValidator(Decimal('0.00'))]
     )
+    incentive         = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))]
+    )
     advance_deduction = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal('0.00'),
         validators=[MinValueValidator(Decimal('0.00'))]
@@ -314,7 +324,7 @@ class SalaryTransaction(models.Model):
 
     # Auto-computed — do not set manually
     net_paid     = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
-    status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default='paid')
     payment_date = models.DateField(blank=True, null=True)
     notes        = models.TextField(blank=True, null=True)
 
@@ -346,7 +356,36 @@ class SalaryTransaction(models.Model):
         # #6 — Safe Decimal arithmetic, always consistent
         self.net_paid = (
             Decimal(str(self.base_salary)) +
-            Decimal(str(self.bonus)) -
+            Decimal(str(self.bonus)) +
+            Decimal(str(self.incentive)) -
             Decimal(str(self.advance_deduction))
         )
         super().save(*args, **kwargs)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# INCENTIVE SETTING
+# ─────────────────────────────────────────────────────────────────────────────
+# Single-row config table. Access via IncentiveSetting.get_settings().
+
+class IncentiveSetting(models.Model):
+    order_threshold  = models.IntegerField(default=10,
+        help_text='Minimum job-card services completed in a month to earn incentive')
+    incentive_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        help_text='Fixed incentive amount paid when threshold is met'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name        = 'Incentive Setting'
+        verbose_name_plural = 'Incentive Settings'
+
+    def __str__(self):
+        return f'Incentive: ₹{self.incentive_amount} after {self.order_threshold} orders'
+
+    @classmethod
+    def get_settings(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
