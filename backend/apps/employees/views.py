@@ -4,11 +4,12 @@ from rest_framework.response import Response
 from datetime import date, datetime
 from decimal import Decimal
 import calendar
+from django.utils import timezone as tz
 
-from .models import Employee, Shift, Attendance, SalaryAdvance, SalaryTransaction
+from .models import Employee, Shift, Attendance, SalaryAdvance, SalaryTransaction, IncentiveSetting
 from .serializers import (
     EmployeeSerializer, ShiftSerializer, AttendanceSerializer,
-    SalaryAdvanceSerializer, SalaryTransactionSerializer,
+    SalaryAdvanceSerializer, SalaryTransactionSerializer, IncentiveSettingSerializer,
 )
 
 
@@ -176,6 +177,14 @@ class SalaryAdvanceListView(APIView):
             qs = qs.filter(employee_id=p['employee'])
         if p.get('status'):
             qs = qs.filter(status=p['status'])
+        if p.get('salary_month'):
+            qs = qs.filter(salary_month=p['salary_month'])
+        try:
+            limit = int(p['limit']) if p.get('limit') else None
+        except (ValueError, TypeError):
+            limit = None
+        if limit:
+            qs = qs[:limit]
         return Response(SalaryAdvanceSerializer(qs, many=True).data)
 
     def post(self, request):
@@ -227,6 +236,12 @@ class SalaryTransactionListView(APIView):
             qs = qs.filter(month__year=p['year'])
         if p.get('status'):
             qs = qs.filter(status=p['status'])
+        try:
+            limit = int(p['limit']) if p.get('limit') else None
+        except (ValueError, TypeError):
+            limit = None
+        if limit:
+            qs = qs[:limit]
         return Response(SalaryTransactionSerializer(qs, many=True).data)
 
     def post(self, request):
@@ -263,8 +278,10 @@ class SalaryTransactionDetailView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-# ── Salary Compute (attendance-based, GymCRM formula) ────────────────────────
-# billable_mins = max(0, worked + overtime − late)
+# ── Salary Compute (attendance-based) ────────────────────────────────────────
+# Off-days are paid time-off: total_scheduled = ALL calendar days × shift_mins.
+# Off-day hours are auto-credited unless an absent/leave record exists for that day.
+# billable_mins = max(0, worked + off_day_credit + overtime − late)
 # hours_pct     = billable_mins / total_scheduled_mins × 100
 # computed      = base_salary × hours_pct / 100
 
@@ -281,9 +298,12 @@ class SalaryComputeView(APIView):
         except Employee.DoesNotExist:
             return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        month_int = int(month)
-        year_int  = int(year)
-        shift     = emp.shift
+        try:
+            month_int = int(month)
+            year_int  = int(year)
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid month or year'}, status=status.HTTP_400_BAD_REQUEST)
+        shift = emp.shift
 
         if not shift:
             return Response({
@@ -295,6 +315,7 @@ class SalaryComputeView(APIView):
                 'total_worked_mins': 0,
                 'total_late_mins': 0,
                 'total_ot_mins': 0,
+                'off_day_credit_mins': 0,
                 'billable_mins': 0,
                 'hours_pct': 100.0,
                 'working_days_in_month': 0,
@@ -306,28 +327,51 @@ class SalaryComputeView(APIView):
         end_dt             = datetime.combine(date.today(), shift.end_time)
         shift_mins_per_day = int((end_dt - start_dt).total_seconds() / 60)
 
-        # Count working days this month per shift config
         days_in_month      = calendar.monthrange(year_int, month_int)[1]
         working_days_count = sum(
             1 for d in range(1, days_in_month + 1)
             if date(year_int, month_int, d).weekday() in shift.working_days_list
         )
-        total_scheduled_mins = working_days_count * shift_mins_per_day
 
-        # Sum stored per-record fields (computed in Attendance.save())
-        # half_day records entered without times have worked_minutes=0; credit them half a shift.
-        records           = Attendance.objects.filter(employee=emp, date__month=month_int, date__year=year_int)
+        # Total scheduled = ALL calendar days (working + off) × shift_mins
+        total_scheduled_mins = days_in_month * shift_mins_per_day
+
+        # Build a map of date → status for records in this month
+        records        = list(Attendance.objects.filter(employee=emp, date__month=month_int, date__year=year_int))
+        record_map     = {r.date: r for r in records}
+        today_date     = tz.localdate()
+        ABSENT_STATUSES = {'absent', 'auto_absent'}
+        LEAVE_STATUSES  = {'leave'}
+
         total_worked_mins = 0
-        for r in records:
-            if r.worked_minutes > 0:
-                total_worked_mins += r.worked_minutes
-            elif r.status == 'half_day':
-                total_worked_mins += shift_mins_per_day // 2
-        total_late_mins   = sum(r.late_minutes     for r in records)
-        total_ot_mins     = sum(r.overtime_minutes for r in records)
+        total_late_mins   = 0
+        total_ot_mins     = 0
+        off_day_credit_mins = 0
 
-        # Core GymCRM formula
-        billable_mins = max(0, total_worked_mins + total_ot_mins - total_late_mins)
+        for d_num in range(1, days_in_month + 1):
+            d   = date(year_int, month_int, d_num)
+            rec = record_map.get(d)
+            is_working_day = d.weekday() in shift.working_days_list
+
+            if is_working_day:
+                # Working day: use actual attendance record
+                if rec:
+                    if rec.worked_minutes > 0:
+                        total_worked_mins += rec.worked_minutes
+                    elif rec.status == 'half_day':
+                        total_worked_mins += shift_mins_per_day // 2
+                    total_late_mins += rec.late_minutes
+                    total_ot_mins   += rec.overtime_minutes
+            else:
+                # Off-day: auto-credit full shift unless leave/absent was explicitly recorded
+                if d <= today_date:
+                    if rec and rec.status in ABSENT_STATUSES | LEAVE_STATUSES:
+                        pass  # explicit leave on off-day — no credit
+                    else:
+                        off_day_credit_mins += shift_mins_per_day
+
+        # Core formula
+        billable_mins = max(0, total_worked_mins + off_day_credit_mins + total_ot_mins - total_late_mins)
         if total_scheduled_mins > 0:
             hours_pct = round(billable_mins / total_scheduled_mins * 100, 1)
         else:
@@ -346,6 +390,7 @@ class SalaryComputeView(APIView):
             'total_worked_mins': total_worked_mins,
             'total_late_mins': total_late_mins,
             'total_ot_mins': total_ot_mins,
+            'off_day_credit_mins': off_day_credit_mins,
             'billable_mins': billable_mins,
             'hours_pct': hours_pct,
             'working_days_in_month': working_days_count,
@@ -362,7 +407,7 @@ class EmployeeCalendarView(APIView):
         except Employee.DoesNotExist:
             return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        today = date.today()
+        today = tz.localdate()
         try:
             year_int  = int(request.query_params.get('year',  today.year))
             month_int = int(request.query_params.get('month', today.month))
@@ -426,8 +471,8 @@ class EmployeeCalendarView(APIView):
 
 class AttendanceAutoCheckoutView(APIView):
     def post(self, request):
-        today    = date.today()
-        now_time = datetime.now().time().replace(second=0, microsecond=0)
+        today    = tz.localdate()
+        now_time = tz.localtime(tz.now()).time().replace(second=0, microsecond=0)
 
         pending = Attendance.objects.filter(
             date=today,
@@ -471,7 +516,7 @@ class AttendanceKioskLookupView(APIView):
         except Employee.DoesNotExist:
             return Response({'error': f'No employee found with code "{emp_code}"'}, status=status.HTTP_404_NOT_FOUND)
 
-        today = date.today()
+        today = tz.localdate()
         try:
             record = Attendance.objects.get(employee=emp, date=today)
         except Attendance.DoesNotExist:
@@ -510,8 +555,8 @@ class AttendanceKioskView(APIView):
         except Employee.DoesNotExist:
             return Response({'error': f'No employee found with code "{emp_code}"'}, status=status.HTTP_404_NOT_FOUND)
 
-        today    = date.today()
-        now_time = datetime.now().time().replace(second=0, microsecond=0)
+        today    = tz.localdate()
+        now_time = tz.localtime(tz.now()).time().replace(second=0, microsecond=0)
 
         is_late = False
         if emp.shift and emp.shift.start_time:
@@ -562,4 +607,57 @@ class AttendanceKioskView(APIView):
             'time': now_time.strftime('%H:%M'),
             'status': record.status,
             'message': f'Check-out updated to {now_time.strftime("%H:%M")}',
+        })
+
+
+# ── Incentive Settings ────────────────────────────────────────────────────────
+
+class IncentiveSettingView(APIView):
+    def get(self, request):
+        obj = IncentiveSetting.get_settings()
+        return Response(IncentiveSettingSerializer(obj).data)
+
+    def put(self, request):
+        obj = IncentiveSetting.get_settings()
+        serializer = IncentiveSettingSerializer(obj, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ── Incentive Compute ─────────────────────────────────────────────────────────
+# Counts distinct JobCard services the employee worked on in the given month.
+# Returns whether the threshold is met and the incentive amount.
+
+class IncentiveComputeView(APIView):
+    def get(self, request):
+        from apps.jobcards.models import JobCardEmployee
+        emp_id = request.query_params.get('employee')
+        month  = request.query_params.get('month')
+        year   = request.query_params.get('year')
+        if not emp_id or not month or not year:
+            return Response({'error': 'employee, month, year required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            month_int = int(month)
+            year_int  = int(year)
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid month or year'}, status=status.HTTP_400_BAD_REQUEST)
+
+        order_count = JobCardEmployee.objects.filter(
+            employee_id=emp_id,
+            job_card_service__job_card__job_card_date__year=year_int,
+            job_card_service__job_card__job_card_date__month=month_int,
+        ).count()
+
+        setting           = IncentiveSetting.get_settings()
+        threshold_met     = order_count >= setting.order_threshold
+        incentive_amount  = str(setting.incentive_amount) if threshold_met else '0.00'
+
+        return Response({
+            'order_count':       order_count,
+            'order_threshold':   setting.order_threshold,
+            'incentive_amount':  incentive_amount,
+            'setting_amount':    str(setting.incentive_amount),
+            'threshold_met':     threshold_met,
         })

@@ -7,6 +7,7 @@ from .views import (
     SalaryTransactionListView, SalaryTransactionDetailView,
     SalaryComputeView, AttendanceKioskView, AttendanceKioskLookupView,
     EmployeeCalendarView, AttendanceAutoCheckoutView,
+    IncentiveSettingView, IncentiveComputeView,
 )
 
 urlpatterns = [
@@ -36,4 +37,8 @@ urlpatterns = [
 
     # Salary compute — attendance-based calculation
     path('salary/compute/', SalaryComputeView.as_view(), name='salary-compute'),
+
+    # Incentive
+    path('salary/incentive/settings/', IncentiveSettingView.as_view(), name='incentive-settings'),
+    path('salary/incentive/compute/', IncentiveComputeView.as_view(), name='incentive-compute'),
 ]
