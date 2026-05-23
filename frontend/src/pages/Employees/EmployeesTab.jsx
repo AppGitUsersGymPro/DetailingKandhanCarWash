@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus, UserCog, Search, Pencil, Trash2,
   Phone, Mail, MapPin, Clock, Users, Briefcase,
-  AlertTriangle, Star, Cake, ChevronsUpDown, CalendarPlus, IndianRupee,
+  AlertTriangle, Star, Cake, ChevronsUpDown, CalendarPlus, IndianRupee, CalendarDays,
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
@@ -234,7 +235,7 @@ function NewJoinersBanner({ employees }) {
 
 // ── Employee Card ─────────────────────────────────────────────────────────────
 
-function EmployeeCard({ emp, onEdit, onDelete }) {
+function EmployeeCard({ emp, onEdit, onDelete, onCalendar }) {
   const t          = TYPE_LABEL[emp.employee_type]  || { label: emp.employee_type,  variant: 'default' };
   const st         = STATUS_LABEL[emp.status]        || { label: emp.status,         variant: 'default' };
   const color      = AVATAR_COLORS[(emp.id || 0) % AVATAR_COLORS.length];
@@ -347,6 +348,13 @@ function EmployeeCard({ emp, onEdit, onDelete }) {
       {/* Actions */}
       <div className="px-4 py-3 flex items-center justify-end gap-1 mt-auto">
         <button
+          onClick={onCalendar}
+          className="p-1.5 text-gray-400 hover:text-blue-400 rounded-lg hover:bg-blue-900/20 transition-colors"
+          title="View Attendance Calendar"
+        >
+          <CalendarDays size={14} />
+        </button>
+        <button
           onClick={onEdit}
           className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-accent/10 transition-colors"
           title="Edit"
@@ -368,7 +376,8 @@ function EmployeeCard({ emp, onEdit, onDelete }) {
 // ── Main Tab ──────────────────────────────────────────────────────────────────
 
 export default function EmployeesTab() {
-  const toast = useToast();
+  const toast    = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading]           = useState(true);
   const [employees, setEmployees]       = useState([]);
   const [search, setSearch]             = useState('');
@@ -573,6 +582,7 @@ export default function EmployeesTab() {
               emp={emp}
               onEdit={() => setModal({ mode: 'edit', data: emp })}
               onDelete={() => setConfirmDel(emp)}
+              onCalendar={() => navigate('/employees/attendance', { state: { openEmployee: emp } })}
             />
           ))}
         </div>

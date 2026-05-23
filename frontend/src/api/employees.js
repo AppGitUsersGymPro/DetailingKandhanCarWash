@@ -43,3 +43,8 @@ export const kioskCheckIn   = (data) => api.post('employees/attendance/kiosk/', 
 
 // ── Auto Checkout ─────────────────────────────────────────────────────────────
 export const autoCheckout   = ()     => api.post('employees/attendance/auto-checkout/').then(r => r.data);
+
+// ── Incentive Settings & Compute ──────────────────────────────────────────────
+export const getIncentiveSettings    = ()       => api.get('employees/salary/incentive/settings/').then(r => r.data);
+export const updateIncentiveSettings = (data)   => api.put('employees/salary/incentive/settings/', data).then(r => r.data);
+export const computeIncentive        = (params) => api.get('employees/salary/incentive/compute/', { params }).then(r => r.data);
