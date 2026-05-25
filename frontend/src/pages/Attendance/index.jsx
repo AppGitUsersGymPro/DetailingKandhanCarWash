@@ -89,7 +89,7 @@ function fmtTime(t) {
   const hh = parseInt(parts[0], 10);
   const ampm = hh >= 12 ? 'PM' : 'AM';
   const h12 = hh % 12 || 12;
-  return `${h12}:${parts[1]}${ampm}`;
+  return `${h12}:${parts[1]} ${ampm}`;
 }
 
 export default function Attendance() {

@@ -667,7 +667,7 @@ function EmployeeCalendar({ calData, loading, month, year, isCurrentMonth, today
               {shift && (
                 <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
                   <Clock size={10} />
-                  {shift.shift_name} · {shift.start_time?.slice(0, 5)} – {shift.end_time?.slice(0, 5)}
+                  {shift.shift_name} · {fmtTime(shift.start_time)} – {fmtTime(shift.end_time)}
                 </p>
               )}
             </div>
