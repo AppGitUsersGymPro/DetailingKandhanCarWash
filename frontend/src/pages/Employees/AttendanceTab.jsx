@@ -148,7 +148,7 @@ export default function AttendanceTab() {
   const [confirmDel, setConfirmDel]     = useState(null);
   const [delLoading, setDelLoading]     = useState(false);
   const [markingAll, setMarkingAll]     = useState(false);
-  const [confirmMarkAll, setConfirmMarkAll] = useState(null);
+  const [markAllModal, setMarkAllModal] = useState(null); // { onTime: bool, lateTime: 'HH:MM' }
 
   // Date-view state (for "By Date" mode within the employee list panel)
   const [listMode, setListMode]             = useState('staff'); // 'staff' | 'date'
@@ -249,15 +249,27 @@ export default function AttendanceTab() {
   todayAtt.forEach((r) => { todayAttMap[String(r.employee)] = r; });
   const unmarkedToday = employees.filter((e) => e.status === 'active' && !todayAttMap[String(e.id)]);
 
-  const markAllPresent = async () => {
-    const checkInTime = confirmMarkAll?.time;
-    setConfirmMarkAll(null);
+  const markAllPresent = async ({ onTime, empTimes }) => {
+    setMarkAllModal(null);
     setMarkingAll(true);
     try {
       const results = await Promise.allSettled(
-        unmarkedToday.map((emp) =>
-          createAttendance({ employee: emp.id, date: today, status: 'present', notes: null, check_in: checkInTime || null, check_out: null })
-        )
+        unmarkedToday.map((emp) => {
+          let checkIn = null;
+          if (onTime) {
+            checkIn = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : null;
+          } else {
+            checkIn = empTimes?.[emp.id] || null;
+          }
+          return createAttendance({
+            employee:  emp.id,
+            date:      today,
+            status:    'present',
+            notes:     null,
+            check_in:  checkIn,
+            check_out: null,
+          });
+        })
       );
       const succeeded = results.filter((r) => r.status === 'fulfilled').length;
       const failed    = results.filter((r) => r.status === 'rejected').length;
@@ -388,7 +400,7 @@ export default function AttendanceTab() {
             unmarkedToday={unmarkedToday}
             markingAll={markingAll}
             onViewCalendar={openCalendar}
-            onRequestMarkAll={() => setConfirmMarkAll({ time: nowTimeStr() })}
+            onRequestMarkAll={() => setMarkAllModal({ onTime: true, lateTime: nowTimeStr() })}
           />
         ) : (
           <DateViewPanel
@@ -417,13 +429,14 @@ export default function AttendanceTab() {
         }}
       />
 
-      <ConfirmDialog
-        open={!!confirmMarkAll}
-        onClose={() => setConfirmMarkAll(null)}
-        onConfirm={markAllPresent}
+      <MarkAllPresentModal
+        open={!!markAllModal}
+        modal={markAllModal}
+        employees={unmarkedToday}
         loading={markingAll}
-        title={`Mark ${unmarkedToday.length} employee${unmarkedToday.length !== 1 ? 's' : ''} as present?`}
-        message={`Check-in time ${confirmMarkAll?.time} will be recorded for all unmarked employees. This cannot be undone.`}
+        onClose={() => setMarkAllModal(null)}
+        onChange={setMarkAllModal}
+        onConfirm={markAllPresent}
       />
     </>
   );
@@ -865,6 +878,123 @@ function DayCell({ dayInfo, today, onDayClick, onDeleteRecord }) {
         </>
       )}
     </div>
+  );
+}
+
+// ── Mark All Present Modal ─────────────────────────────────────────────────────
+
+function MarkAllPresentModal({ open, modal, employees, loading, onClose, onChange, onConfirm }) {
+  const [empTimes, setEmpTimes] = useState({});
+
+  useEffect(() => {
+    if (!open || !employees?.length) return;
+    const init = {};
+    employees.forEach((emp) => {
+      init[emp.id] = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : nowTimeStr();
+    });
+    setEmpTimes(init);
+  }, [open, employees]); // eslint-disable-line
+
+  if (!open || !modal) return null;
+
+  const { onTime } = modal;
+  const count = employees?.length || 0;
+
+  const setEmpTime = (empId, time) =>
+    setEmpTimes((prev) => ({ ...prev, [empId]: time }));
+
+  const lateCount = (employees || []).filter((emp) => {
+    const shiftStart = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : null;
+    return shiftStart && empTimes[emp.id] && empTimes[emp.id] > shiftStart;
+  }).length;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title={`Mark ${count} employee${count !== 1 ? 's' : ''} as Present`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
+          <Button onClick={() => onConfirm({ onTime, empTimes })} loading={loading}>
+            Mark All Present
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <p className="text-sm text-gray-400">Did everyone arrive on time today?</p>
+
+        {/* On Time */}
+        <button
+          type="button"
+          onClick={() => onChange((m) => ({ ...m, onTime: true }))}
+          className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors text-left ${
+            onTime ? 'border-emerald-600/60 bg-emerald-900/20' : 'border-border bg-bg-elev/40 hover:bg-bg-elev/70'
+          }`}
+        >
+          <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${onTime ? 'border-emerald-500' : 'border-gray-500'}`}>
+            {onTime && <span className="w-2 h-2 rounded-full bg-emerald-500 block" />}
+          </span>
+          <div>
+            <p className={`text-sm font-semibold ${onTime ? 'text-emerald-400' : 'text-gray-300'}`}>Everyone came on time</p>
+            <p className="text-xs text-gray-500 mt-0.5">Check-in will be set to each employee's shift start time</p>
+          </div>
+        </button>
+
+        {/* Late — expands to per-employee list */}
+        <div className={`rounded-xl border transition-colors ${!onTime ? 'border-yellow-600/60 bg-yellow-900/15' : 'border-border bg-bg-elev/40'}`}>
+          <button
+            type="button"
+            onClick={() => onChange((m) => ({ ...m, onTime: false }))}
+            className="w-full flex items-start gap-3 px-4 py-3 text-left"
+          >
+            <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${!onTime ? 'border-yellow-500' : 'border-gray-500'}`}>
+              {!onTime && <span className="w-2 h-2 rounded-full bg-yellow-500 block" />}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-semibold ${!onTime ? 'text-yellow-400' : 'text-gray-300'}`}>Someone came late</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Set each employee's actual check-in time below
+                {!onTime && lateCount > 0 && <span className="ml-1.5 text-yellow-500 font-medium">· {lateCount} late</span>}
+              </p>
+            </div>
+          </button>
+
+          {!onTime && (
+            <div
+              className="border-t border-yellow-700/30 divide-y divide-border/40 max-h-64 overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {(employees || []).map((emp) => {
+                const shiftStart  = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : null;
+                const currentTime = empTimes[emp.id] || '';
+                const isActuallyLate = shiftStart && currentTime && currentTime > shiftStart;
+                return (
+                  <div key={emp.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${avatarColor(emp.employee_name)}`}>
+                      {getInitials(emp.employee_name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-200 truncate">{emp.employee_name}</p>
+                      {shiftStart && <p className="text-[10px] text-gray-500">Shift starts {fmtTime(shiftStart + ':00')}</p>}
+                    </div>
+                    {isActuallyLate && <span className="text-[10px] font-semibold text-yellow-500 shrink-0">Late</span>}
+                    <input
+                      type="time"
+                      value={currentTime}
+                      onChange={(e) => setEmpTime(emp.id, e.target.value)}
+                      className="w-28 bg-bg-elev border border-border rounded-lg px-2 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-accent/50 focus:border-accent/60 shrink-0"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

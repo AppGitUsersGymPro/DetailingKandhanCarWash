@@ -18,9 +18,10 @@ class ShiftSerializer(serializers.ModelSerializer):
 # ── Employee ──────────────────────────────────────────────────────────────────
 
 class EmployeeSerializer(serializers.ModelSerializer):
-    shift_name    = serializers.CharField(source='shift.shift_name', read_only=True)
+    shift_name       = serializers.CharField(source='shift.shift_name',   read_only=True)
+    shift_start_time = serializers.TimeField(source='shift.start_time',   read_only=True)
     # Not required on create — backend auto-generates EMP{id:03d} when blank
-    employee_code = serializers.CharField(required=False, allow_blank=True, default='')
+    employee_code    = serializers.CharField(required=False, allow_blank=True, default='')
 
     class Meta:
         model = Employee
