@@ -209,7 +209,7 @@ function CustomerFormModal({ modal, onClose, onSaved }) {
         <Field label="Phone Number" required error={errors.phone_number}>
           <Input value={form.phone_number} onChange={(e) => setForm({ ...form, phone_number: e.target.value })} />
         </Field>
-        <Field label="Email">
+        <Field label="Email" required error={errors.email}>
           <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </Field>
       </form>
