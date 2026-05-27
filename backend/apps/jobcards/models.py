@@ -1,12 +1,13 @@
 from decimal import Decimal
 from django.db import models
+from django.utils import timezone
 
 class JobCard(models.Model):
     STATUS_CHOICES = [
         ('IN_PROGRESS', 'In Progress'),
         ('COMPLETED', 'Completed'),
     ]
-    job_card_number = models.CharField(max_length=255, unique=True)
+    job_card_number = models.CharField(max_length=255, unique=True, blank=True)
     customer_asset = models.ForeignKey('customers.CustomerAsset', on_delete=models.PROTECT)
     job_card_date = models.DateField()
     vehicle_kilometers = models.DecimalField(max_digits=10, decimal_places=2)
@@ -17,6 +18,23 @@ class JobCard(models.Model):
     complaints = models.TextField(blank=True, null=True)
     gst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
     employee = models.ForeignKey('employees.Employee', on_delete=models.PROTECT, blank=True, null=True)  # Optional field to track the employee responsible for the job card
+
+    def save(self, *args, **kwargs):
+        if not self.job_card_number:
+            year = (self.job_card_date or timezone.now().date()).year
+            prefix = f'JC-{year}-'
+            existing = JobCard.objects.filter(
+                job_card_number__startswith=prefix
+            ).values_list('job_card_number', flat=True)
+            nums = []
+            for num in existing:
+                try:
+                    nums.append(int(num[len(prefix):]))
+                except (ValueError, IndexError):
+                    pass
+            next_num = (max(nums) + 1) if nums else 1
+            self.job_card_number = f'{prefix}{next_num:03d}'
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.job_card_number

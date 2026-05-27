@@ -137,7 +137,7 @@ class VehicleInputSerializer(serializers.Serializer):
 
 
 class JobCardCoreSerializer(serializers.Serializer):
-    job_card_number           = serializers.CharField()
+    job_card_number           = serializers.CharField(required=False, allow_blank=True)
     job_card_date             = serializers.DateField()
     vehicle_kilometers        = serializers.DecimalField(max_digits=10, decimal_places=2)
     vehicle_entry_time        = serializers.DateTimeField()
