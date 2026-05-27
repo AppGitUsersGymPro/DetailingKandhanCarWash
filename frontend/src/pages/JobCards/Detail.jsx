@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard, ClipboardList } from 'lucide-react';
+import { ChevronLeft, CheckCircle2, Plus, Trash2, UserPlus, Wrench, IndianRupee, Trash, CreditCard, ClipboardList, Download } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -19,6 +19,7 @@ import {
   removeJobCardServiceEmployee,
   addJobCardPayment,
   removeJobCardPayment,
+  listJobCardPayments,
   updateJobCardService,
   loadProductsUsedForJobCard,
   listInventoryOptions,
@@ -391,6 +392,8 @@ export default function JobCardDetail() {
         jobCardId={id}
         onAdded={reload}
         outstanding={job.outstanding}
+        totalAmount={job.total_amount}
+        jobCard={job}
       />
 
       <ShowProductsUsedDialog
@@ -487,14 +490,217 @@ function AddServiceModal({ open, onClose, services, existingIds, onAdded, jobCar
   );
 }
 
-export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding }) {
-  const toast = useToast();
-  const [form, setForm] = useState({ amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'cash', notes: '' });
-  const [submitting, setSubmitting] = useState(false);
+/* ─── Comprehensive Payment Bill (ALL instalments) ──────────────────────── */
+function buildComprehensiveBillHTML({ payments, jobCard, totalAmount }) {
+  const fmt = (n) =>
+    `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+  const METHOD = {
+    cash: 'Cash', upi: 'UPI', card: 'Card',
+    netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other',
+  };
 
+  const total    = Number(totalAmount || 0);
+  const paidAmt  = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const balAmt   = Math.max(0, total - paidAmt);
+  const fullyPaid = balAmt <= 0;
+  const billNo   = `BILL-${jobCard.job_card_number || jobCard.id}`;
+  const genDate  = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const serviceRows = (jobCard.job_card_services || []).map(s => `
+    <tr>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431">${s.service_name || s.service || '—'}</td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;text-align:right;font-weight:600">${fmt(s.price_at_time)}</td>
+    </tr>`).join('');
+
+  /* Running balance per instalment */
+  let runningPaid = 0;
+  const instRows = payments.map((p, i) => {
+    runningPaid += Number(p.amount || 0);
+    const bal = Math.max(0, total - runningPaid);
+    return `<tr>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;color:#9ca3af;text-align:center">${i + 1}</td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;color:#e5e7eb">${p.payment_date}</td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;color:#9ca3af">${METHOD[p.payment_method] || p.payment_method}</td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;text-align:right;color:#34d399;font-weight:700">${fmt(p.amount)}</td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;text-align:right;color:${bal <= 0 ? '#34d399' : '#fbbf24'}">${fmt(bal)}</td>
+      <td style="padding:9px 14px;border-bottom:1px solid #1f2431;color:#6b7280;font-size:11px">${p.notes || '—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Payment Bill — ${billNo}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0b0d12;color:#e5e7eb;padding:32px}
+.page{max-width:820px;margin:0 auto}
+.card{background:#13161d;border:1px solid #252a36;border-radius:12px;padding:22px 26px;margin-bottom:18px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.lbl{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.val{font-size:14px;color:#e5e7eb;font-weight:600}
+.kpi{background:#1a1e27;border:1px solid #252a36;border-radius:10px;padding:14px 16px}
+.kpi .amount{font-size:22px;font-weight:800;margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:1px solid #252a36;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.chip{display:inline-block;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700}
+.section-title{font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+@media print{body{background:#fff;color:#111}.card,.kpi{background:#fff;border-color:#e5e7eb}}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ① Header -->
+  <div class="card" style="background:linear-gradient(135deg,#1a1e27,#0f1117);margin-bottom:22px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">🚗 Detailing Workshop</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">Payment Bill — All Instalments</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:14px;color:#a78bfa;font-weight:800">${billNo}</div>
+        <div style="font-size:11px;color:#6b7280;margin-top:3px">Generated: ${genDate}</div>
+        <div style="margin-top:10px">
+          <span class="chip" style="background:${fullyPaid ? '#052e16' : '#2d1a07'};color:${fullyPaid ? '#34d399' : '#fbbf24'};border:1px solid ${fullyPaid ? '#15803d66' : '#a1620766'}">
+            ${fullyPaid ? '✓ FULLY PAID' : `⚡ ${payments.length} INSTALMENT${payments.length > 1 ? 'S' : ''} PAID`}
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② KPI row -->
+  <div class="grid4">
+    <div class="kpi"><div class="lbl">Total Billed</div><div class="amount" style="color:#c4b5fd">${fmt(total)}</div></div>
+    <div class="kpi"><div class="lbl">Total Paid</div><div class="amount" style="color:#34d399">${fmt(paidAmt)}</div></div>
+    <div class="kpi"><div class="lbl">Outstanding</div><div class="amount" style="color:${fullyPaid ? '#34d399' : '#fbbf24'}">${fmt(balAmt)}</div></div>
+    <div class="kpi"><div class="lbl">Instalments</div><div class="amount" style="color:#38bdf8">${payments.length}</div></div>
+  </div>
+
+  <!-- ③ Customer & Vehicle -->
+  <div class="card">
+    <div class="section-title">Job Card Details</div>
+    <div class="grid2">
+      <div><div class="lbl">Customer Name</div><div class="val">${jobCard.customer_name || '—'}</div></div>
+      <div><div class="lbl">Vehicle Number</div><div class="val">${jobCard.vehicle_number || '—'}</div></div>
+      <div style="margin-top:14px"><div class="lbl">Job Card #</div><div class="val">${jobCard.job_card_number || '—'}</div></div>
+      <div style="margin-top:14px"><div class="lbl">Job Card Date</div><div class="val">${jobCard.job_card_date || '—'}</div></div>
+    </div>
+  </div>
+
+  <!-- ④ Services -->
+  ${serviceRows ? `<div class="card">
+    <div class="section-title">Services</div>
+    <table>
+      <thead><tr>
+        <th>Service Name</th>
+        <th style="text-align:right">Price</th>
+      </tr></thead>
+      <tbody>${serviceRows}</tbody>
+      <tfoot><tr style="background:#1a1e27">
+        <td style="padding:11px 14px;font-weight:800;color:#fff;font-size:14px">TOTAL</td>
+        <td style="padding:11px 14px;text-align:right;font-weight:800;color:#c4b5fd;font-size:16px">${fmt(total)}</td>
+      </tr></tfoot>
+    </table>
+  </div>` : ''}
+
+  <!-- ⑤ All Instalments -->
+  <div class="card">
+    <div class="section-title">Payment Instalments (${payments.length})</div>
+    <table>
+      <thead><tr>
+        <th style="text-align:center">#</th>
+        <th>Date</th>
+        <th>Method</th>
+        <th style="text-align:right">Amount Paid</th>
+        <th style="text-align:right">Balance After</th>
+        <th>Notes</th>
+      </tr></thead>
+      <tbody>${instRows}</tbody>
+      <tfoot><tr style="background:#1a1e27">
+        <td colspan="3" style="padding:11px 14px;font-weight:700;color:#9ca3af">Total Paid</td>
+        <td style="padding:11px 14px;text-align:right;color:#34d399;font-weight:800;font-size:15px">${fmt(paidAmt)}</td>
+        <td colspan="2" style="padding:11px 14px;text-align:right;color:${fullyPaid ? '#34d399' : '#fbbf24'};font-weight:800;font-size:15px">${fmt(balAmt)} due</td>
+      </tr></tfoot>
+    </table>
+  </div>
+
+  <!-- ⑥ Footer -->
+  <div style="text-align:center;color:#374151;font-size:11px;margin-top:24px;padding-top:16px;border-top:1px solid #1a1e27">
+    Thank you for your business &nbsp;·&nbsp; ${billNo} &nbsp;·&nbsp; Detailing CRM
+  </div>
+
+</div>
+</body>
+</html>`;
+}
+
+function triggerComprehensiveDownload({ payments, jobCard, totalAmount }) {
+  const html = buildComprehensiveBillHTML({ payments, jobCard, totalAmount });
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `bill-${(jobCard?.job_card_number || jobCard?.id || 'jc').replace(/\s+/g, '-')}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ─── helpers ──────────────────────────────────────────────────────────────── */
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const fmtMoney = (n) =>
+  `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+const METHOD_LABEL = {
+  cash: 'Cash', upi: 'UPI', card: 'Card',
+  netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other',
+};
+
+export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding, totalAmount, jobCard }) {
+  const toast = useToast();
+
+  const [form, setForm]             = useState({ amount: '', payment_date: localToday(), payment_method: 'cash', notes: '' });
+  const [submitting, setSubmitting]  = useState(false);
+  const [payments, setPayments]     = useState([]);
+  const [loadingPay, setLoadingPay] = useState(false);
+  const [justRecordedId, setJustRecordedId] = useState(null);
+  const [showDownloadBtn, setShowDownloadBtn] = useState(false);
+
+  /* Fetch fresh payment list every time the modal opens */
   useEffect(() => {
-    if (open) setForm({ amount: '', payment_date: new Date().toISOString().slice(0, 10), payment_method: 'cash', notes: '' });
-  }, [open]);
+    if (!open || !jobCardId) return;
+    setForm({ amount: '', payment_date: localToday(), payment_method: 'cash', notes: '' });
+    setJustRecordedId(null);
+    setShowDownloadBtn(false);
+    setLoadingPay(true);
+    listJobCardPayments(jobCardId)
+      .then(data => setPayments(Array.isArray(data) ? data : []))
+      .catch(() => setPayments([]))
+      .finally(() => setLoadingPay(false));
+  }, [open, jobCardId]);
+
+  /* Live-compute totals from fetched payments */
+  const total     = Number(totalAmount || 0);
+  const paidAmt   = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const dueAmt    = Math.max(0, total - paidAmt);
+  const payStatus = total <= 0 ? 'unpaid'
+    : paidAmt >= total ? 'paid'
+    : paidAmt > 0      ? 'partial'
+    : 'unpaid';
+
+  const STATUS_CFG = {
+    paid:    { bg: 'bg-emerald-900/30', border: 'border-emerald-700/50', text: 'text-emerald-300', label: '✓ Fully Paid' },
+    partial: { bg: 'bg-yellow-900/25',  border: 'border-yellow-700/50',  text: 'text-yellow-300',  label: '⚡ Partially Paid' },
+    unpaid:  { bg: 'bg-red-900/20',     border: 'border-red-700/50',     text: 'text-red-300',     label: '✗ Unpaid' },
+  };
+  const scfg = STATUS_CFG[payStatus];
 
   const submit = async (e) => {
     e.preventDefault();
@@ -504,15 +710,19 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
     }
     setSubmitting(true);
     try {
-      await addJobCardPayment(jobCardId, {
-        amount: Number(form.amount),
-        payment_date: form.payment_date,
+      const newPay = await addJobCardPayment(jobCardId, {
+        amount:         Number(form.amount),
+        payment_date:   form.payment_date,
         payment_method: form.payment_method,
-        notes: form.notes,
+        notes:          form.notes,
       });
+      const updatedPayments = [...payments, newPay];
+      setPayments(updatedPayments);
+      setJustRecordedId(newPay.id ?? (updatedPayments.length - 1));
+      setShowDownloadBtn(true);
+      setForm({ amount: '', payment_date: localToday(), payment_method: 'cash', notes: '' });
       toast.success('Payment recorded');
       onAdded();
-      onClose();
     } catch (err) {
       toast.error(extractError(err));
     } finally {
@@ -529,40 +739,152 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
       title="Record Payment"
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button variant="success" onClick={submit} loading={submitting}>Record</Button>
+          <Button variant="secondary" onClick={onClose}>Close</Button>
+          {(showDownloadBtn || payStatus === 'paid') && payments.length > 0 && jobCard && (
+            <Button
+              variant="secondary"
+              onClick={() => triggerComprehensiveDownload({ payments, jobCard, totalAmount: total })}
+            >
+              <Download size={14} /> Download Bill
+            </Button>
+          )}
+          {payStatus !== 'paid' && (
+            <Button variant="success" onClick={submit} loading={submitting}>Record Payment</Button>
+          )}
         </>
       }
     >
       <div className="space-y-4">
-        {outstanding && Number(outstanding) > 0 && (
-          <p className="text-xs text-yellow-400 bg-yellow-900/20 border border-yellow-800 rounded-md px-3 py-2">
-            Outstanding: ₹{Number(outstanding).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+
+        {/* ── Status & amount summary ── */}
+        {total > 0 && (
+          <div className={`rounded-xl border px-4 py-3 ${scfg.bg} ${scfg.border}`}>
+            <div className={`text-xs font-bold mb-2 ${scfg.text}`}>{scfg.label}</div>
+            <div className="grid grid-cols-3 gap-3 text-[11px]">
+              <div>
+                <span className="text-gray-500 block mb-0.5">Total Billed</span>
+                <span className="text-gray-200 font-semibold">{fmtMoney(total)}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block mb-0.5">Paid</span>
+                <span className="text-emerald-400 font-semibold">{fmtMoney(paidAmt)}</span>
+              </div>
+              <div>
+                <span className="text-gray-500 block mb-0.5">Outstanding</span>
+                <span className="text-yellow-400 font-semibold">{fmtMoney(dueAmt)}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Payment installments history ── */}
+        <div className="rounded-xl border border-border overflow-hidden">
+          <div className="px-3 py-2 bg-bg-elev border-b border-border flex items-center justify-between">
+            <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              Payment Installments
+            </span>
+            {payments.length > 0 && (
+              <span className="text-[10px] bg-bg px-1.5 py-0.5 rounded-full border border-border text-gray-400">
+                {payments.length}
+              </span>
+            )}
+          </div>
+
+          {loadingPay ? (
+            <div className="px-3 py-4 text-xs text-gray-500 text-center">Loading…</div>
+          ) : payments.length === 0 ? (
+            <div className="px-3 py-4 text-xs text-gray-500 text-center">No payments recorded yet</div>
+          ) : (
+            <div className="divide-y divide-border max-h-52 overflow-y-auto">
+              {payments.map((p, i) => {
+                const isNew = p.id != null ? p.id === justRecordedId : i === justRecordedId;
+                return (
+                  <div
+                    key={p.id ?? i}
+                    className={`flex items-center justify-between px-3 py-2.5 transition-colors ${isNew ? 'bg-emerald-900/20' : 'hover:bg-bg-hover'}`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      {/* Installment number bubble */}
+                      <span className="w-6 h-6 rounded-full bg-emerald-900/40 border border-emerald-700/40 text-emerald-400 text-[9px] font-bold flex items-center justify-center shrink-0">
+                        {i + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xs text-gray-200 font-medium flex items-center gap-1.5">
+                          {p.payment_date}
+                          {isNew && (
+                            <span className="text-[9px] bg-emerald-900/50 text-emerald-300 border border-emerald-700/40 px-1.5 py-0.5 rounded-full">
+                              New
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-500">{METHOD_LABEL[p.payment_method] || p.payment_method}</div>
+                      </div>
+                    </div>
+
+                    {/* Amount */}
+                    <span className="text-sm font-bold text-emerald-400 shrink-0">{fmtMoney(p.amount)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── Download banner (shown right after recording) ── */}
+        {showDownloadBtn && jobCard && payments.length > 0 && (
+          <div className="flex items-center justify-between rounded-xl border border-emerald-700/50 bg-emerald-900/20 px-4 py-3">
+            <div className="text-xs text-emerald-300 font-medium">
+              ✓ Payment recorded — bill ready to download
+            </div>
+            <button
+              type="button"
+              onClick={() => triggerComprehensiveDownload({ payments, jobCard, totalAmount: total })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/50 border border-emerald-600/60 text-emerald-200 text-xs font-semibold hover:bg-emerald-700/50 transition-colors"
+            >
+              <Download size={12} /> Download Bill
+            </button>
+          </div>
+        )}
+
+        {/* ── New payment form (hidden when fully paid) ── */}
+        {payStatus !== 'paid' && (
+          <>
+            <div className="border-t border-border" />
+            <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider -mb-1">Add New Payment</p>
+
+            <Field label="Amount (₹)" required>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                placeholder={dueAmt > 0 ? `Outstanding: ₹${dueAmt.toLocaleString('en-IN')}` : 'Enter amount'}
+                value={form.amount}
+                onChange={e => upd('amount', e.target.value)}
+              />
+            </Field>
+            <Field label="Payment Date" required>
+              <Input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} />
+            </Field>
+            <Field label="Payment Method">
+              <Select value={form.payment_method} onChange={e => upd('payment_method', e.target.value)}>
+                {[['cash','Cash'],['upi','UPI'],['card','Card'],['netbanking','Net Banking'],['cheque','Cheque'],['other','Other']].map(([v,l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Notes">
+              <Input placeholder="Optional note" value={form.notes} onChange={e => upd('notes', e.target.value)} />
+            </Field>
+          </>
+        )}
+
+        {/* Fully paid message */}
+        {payStatus === 'paid' && (
+          <p className="text-xs text-emerald-400 text-center py-2">
+            🎉 This job card is fully paid. Click "Download Bill" to get a full statement.
           </p>
         )}
-        <Field label="Amount (₹)" required>
-          <Input
-            type="number"
-            step="0.01"
-            min="0.01"
-            placeholder="Enter amount"
-            value={form.amount}
-            onChange={e => upd('amount', e.target.value)}
-          />
-        </Field>
-        <Field label="Payment Date" required>
-          <Input type="date" value={form.payment_date} onChange={e => upd('payment_date', e.target.value)} />
-        </Field>
-        <Field label="Payment Method">
-          <Select value={form.payment_method} onChange={e => upd('payment_method', e.target.value)}>
-            {[['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card'], ['netbanking', 'Net Banking'], ['cheque', 'Cheque'], ['other', 'Other']].map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Notes">
-          <Input placeholder="Optional note" value={form.notes} onChange={e => upd('notes', e.target.value)} />
-        </Field>
+
       </div>
     </Modal>
   );

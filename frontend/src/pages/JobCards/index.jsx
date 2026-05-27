@@ -83,6 +83,14 @@ const STAT_CARDS = [
   },
 ];
 import { AddPaymentModal } from './Detail';
+
+/* Payment status badge config */
+const PAY_STATUS = {
+  paid:    { label: 'Paid',    cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
+  unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
+};
+
 export default function JobCardsList() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -91,9 +99,8 @@ export default function JobCardsList() {
   const [search, setSearch]             = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [stats, setStats] = useState({ active: 0, completed: 0, twoWheeler: 0, fourWheeler: 0, threeWheeler: 0 });
-  const [paymentModal, setPaymentModal] = useState(false);
-  const [payJobCard, setPayJobCard] = useState(null);
-
+  const [payJobCard, setPayJobCard]     = useState(null);
+  const [refreshKey, setRefreshKey]     = useState(0); // bump to force reload after payment
 
   useEffect(() => {
     async function loadAll() {
@@ -124,7 +131,7 @@ export default function JobCardsList() {
       }
     }
     loadAll();
-  }, [statusFilter]); // eslint-disable-line
+  }, [statusFilter, refreshKey]); // eslint-disable-line
 
   const filtered = useMemo(() => {
     if (!search.trim()) return jobs;
@@ -147,12 +154,25 @@ export default function JobCardsList() {
     { key: 'job_card_date', header: 'Date' },
     {
       key: 'total_price',
-      header: 'Total',
-      render: (r) => `₹${jobCardTotal(r).toLocaleString('en-IN')}`,
+      header: 'Total / Due',
+      render: (r) => {
+        const total = jobCardTotal(r);
+        const due   = Number(r.outstanding || 0);
+        return (
+          <div className="leading-tight">
+            <div className="text-gray-100 font-medium">₹{total.toLocaleString('en-IN')}</div>
+            {due > 0 && (
+              <div className="text-[11px] text-yellow-400 mt-0.5">
+                ₹{due.toLocaleString('en-IN', { minimumFractionDigits: 2 })} due
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'job_card_status',
-      header: 'Status',
+      header: 'Job Status',
       render: (r) => (
         <Badge variant={r.job_card_status === 'COMPLETED' ? 'green' : 'yellow'}>
           {r.job_card_status === 'COMPLETED' ? 'Completed' : 'In Progress'}
@@ -160,12 +180,29 @@ export default function JobCardsList() {
       ),
     },
     {
-      key: 'payment',
+      key: 'payment_status',
       header: 'Payment',
+      render: (r) => {
+        const cfg = PAY_STATUS[r.payment_status] || PAY_STATUS.unpaid;
+        return (
+          <span className={`inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full border ${cfg.cls}`}>
+            {cfg.label}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'pay_action',
+      header: '',
       render: (r) => (
-        <Button onClick={(e) => { e.stopPropagation(); setPayJobCard(r); }}>Pay Now </Button>
+        <Button
+          onClick={(e) => { e.stopPropagation(); setPayJobCard(r); }}
+          variant={r.payment_status === 'paid' ? 'secondary' : 'primary'}
+        >
+          {r.payment_status === 'paid' ? 'View' : 'Pay Now'}
+        </Button>
       ),
-    }
+    },
   ];
 
   return (
@@ -215,15 +252,18 @@ export default function JobCardsList() {
             <option value="COMPLETED">Completed</option>
           </Select>
         </div>
-        <AddPaymentModal
-          open={!!payJobCard}
-          onClose={() => setPayJobCard(null)}
-          jobCardId={payJobCard?.id}
-          outstanding={payJobCard?.outstanding}
-          onAdded={() => { /* reload your jobs list */ }}
-        />
-
       </div>
+
+      {/* Payment modal — outside filter bar so it renders correctly */}
+      <AddPaymentModal
+        open={!!payJobCard}
+        onClose={() => setPayJobCard(null)}
+        jobCardId={payJobCard?.id}
+        outstanding={payJobCard?.outstanding}
+        totalAmount={payJobCard?.total_amount}
+        jobCard={payJobCard}
+        onAdded={() => setRefreshKey(k => k + 1)}
+      />
 
       {loading ? (
         <Loading />
