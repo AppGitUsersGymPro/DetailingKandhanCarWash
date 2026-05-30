@@ -106,7 +106,7 @@ export default function ServiceDetail() {
                 <div key={p.id} className="px-5 py-3 flex items-center justify-between">
                   <div>
                     <div className="font-medium text-gray-100">{p.product_name}</div>
-                    <div className="text-xs text-gray-400">{p.quantity_required} {p.unit}</div>
+                    <div className="text-xs text-gray-400">{p.unit}</div>
                   </div>
                   <button
                     onClick={() => setConfirmRemove({ type: 'product', id: p.id })}
@@ -182,17 +182,16 @@ export default function ServiceDetail() {
 function AddProductModal({ open, onClose, onSaved, serviceId, products, existingIds }) {
   const toast = useToast();
   const [productId, setProductId] = useState('');
-  const [qty, setQty] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => { if (open) { setProductId(''); setQty(''); } }, [open]);
+  useEffect(() => { if (open) setProductId(''); }, [open]);
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!productId || !qty) return;
+    if (!productId) return;
     setSubmitting(true);
     try {
-      await addServiceProduct(serviceId, { product: Number(productId), quantity_required: Number(qty) });
+      await addServiceProduct(serviceId, { product: Number(productId) });
       toast.success('Product added');
       onSaved();
       onClose();
@@ -213,23 +212,18 @@ function AddProductModal({ open, onClose, onSaved, serviceId, products, existing
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={submitting} disabled={!productId || !qty}>Add</Button>
+          <Button onClick={submit} loading={submitting} disabled={!productId}>Add</Button>
         </>
       }
     >
-      <div className="space-y-4">
-        <Field label="Product" required>
-          <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
-            <option value="">Select product...</option>
-            {available.map((p) => (
-              <option key={p.id} value={p.id}>{p.product_name} ({p.product_unit})</option>
-            ))}
-          </Select>
-        </Field>
-        <Field label="Quantity Required" required>
-          <Input type="number" step="0.01" value={qty} onChange={(e) => setQty(e.target.value)} />
-        </Field>
-      </div>
+      <Field label="Product" required>
+        <Select value={productId} onChange={(e) => setProductId(e.target.value)}>
+          <option value="">Select product...</option>
+          {available.map((p) => (
+            <option key={p.id} value={p.id}>{p.product_name} ({p.product_unit})</option>
+          ))}
+        </Select>
+      </Field>
     </Modal>
   );
 }
