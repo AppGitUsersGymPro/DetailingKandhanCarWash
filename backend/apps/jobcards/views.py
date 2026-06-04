@@ -533,53 +533,91 @@ class CustomerAnalyticsView(APIView):
 class CustomerReportView(APIView):
     """
     Full customer activity report.
-    Query params:
-      status  – 'active' | 'inactive' | '' (all)
-      year    – 4-digit year string, filters visits by year
+    Query params (date range — mutually exclusive, applied in priority order):
+      last_days – integer: show stats for last N days from today
+      month     – YYYY-MM: show stats for that calendar month
+      year      – YYYY: show stats for that full year
+      (none)    – all-time stats
+      status    – 'active' | 'inactive' | '' (all)
     Response: { customers: [...], total: N, available_years: [...] }
     """
     def get(self, request):
         from decimal import Decimal
         from datetime import date as ddate, timedelta
+        from calendar import monthrange
         from apps.customers.models import Customer
 
-        status_filter = request.query_params.get('status', '')
-        year_filter   = request.query_params.get('year',   '')
+        status_filter = request.query_params.get('status',    '')
+        year_filter   = request.query_params.get('year',      '')
+        last_days_raw = request.query_params.get('last_days', '')
+        month_raw     = request.query_params.get('month',     '')
 
         today     = ddate.today()
         threshold = today - timedelta(days=45)
 
-        # ── Step 1: aggregate job-card stats per customer (bulk fetch) ──────
+        # ── Determine date range for visit/revenue stats ─────────────────
+        date_from = None
+        date_to   = None
+        if last_days_raw:
+            try:
+                date_from = today - timedelta(days=int(last_days_raw))
+            except ValueError:
+                pass
+        elif month_raw:
+            try:
+                y, m = int(month_raw[:4]), int(month_raw[5:7])
+                date_from = ddate(y, m, 1)
+                date_to   = ddate(y, m, monthrange(y, m)[1])
+            except (ValueError, IndexError):
+                pass
+        elif year_filter:
+            try:
+                date_from = ddate(int(year_filter), 1, 1)
+                date_to   = ddate(int(year_filter), 12, 31)
+            except ValueError:
+                pass
+
+        has_date_filter = date_from is not None
+
+        # ── Step 1: aggregate job-card stats per customer (bulk fetch) ─────
         all_jcs = JobCard.objects.select_related(
             'customer_asset__customer'
         ).prefetch_related('job_card_services').order_by()
 
-        cust_map   = {}   # id → data dict
-        all_years  = set()
+        cust_map  = {}
+        all_years = set()
 
         for jc in all_jcs:
-            cust = jc.customer_asset.customer
-            cid  = cust.id
-            yr   = str(jc.job_card_date.year) if jc.job_card_date else 'unknown'
+            cust   = jc.customer_asset.customer
+            cid    = cust.id
+            jc_date = jc.job_card_date
+            yr     = str(jc_date.year) if jc_date else 'unknown'
             all_years.add(yr)
 
             if cid not in cust_map:
                 cust_map[cid] = {
-                    'id':    cid,
-                    'name':  cust.customer_name,
-                    'phone': cust.phone_number,
-                    'email': cust.email or '',
-                    'all_dates':      [],
-                    'visits_by_year': defaultdict(int),
-                    'rev_by_year':    defaultdict(Decimal),
+                    'id':               cid,
+                    'name':             cust.customer_name,
+                    'all_dates':        [],
+                    'filtered_visits':  0,
+                    'filtered_revenue': Decimal('0'),
                 }
             row = cust_map[cid]
-            if jc.job_card_date:
-                row['all_dates'].append(jc.job_card_date)
-            row['visits_by_year'][yr] += 1
-            row['rev_by_year'][yr]   += sum(s.price_at_time for s in jc.job_card_services.all())
+            if jc_date:
+                row['all_dates'].append(jc_date)
 
-        # ── Step 2: build report (include customers with 0 visits) ──────────
+            # Check whether this job card falls inside the selected date range
+            in_range = True
+            if date_from and jc_date and jc_date < date_from:
+                in_range = False
+            if date_to   and jc_date and jc_date > date_to:
+                in_range = False
+
+            if in_range:
+                row['filtered_visits']  += 1
+                row['filtered_revenue'] += sum(s.price_at_time for s in jc.job_card_services.all())
+
+        # ── Step 2: build report (include customers with 0 visits) ─────────
         all_customers = Customer.objects.all().order_by('customer_name')
         report = []
 
@@ -589,20 +627,18 @@ class CustomerReportView(APIView):
 
             if data:
                 last_visit = max(data['all_dates']) if data['all_dates'] else None
-                if year_filter:
-                    visits  = data['visits_by_year'].get(year_filter, 0)
-                    revenue = float(data['rev_by_year'].get(year_filter, Decimal('0')))
-                else:
-                    visits  = sum(data['visits_by_year'].values())
-                    revenue = float(sum(data['rev_by_year'].values()))
+                visits     = data['filtered_visits']
+                revenue    = float(data['filtered_revenue'])
             else:
                 last_visit = None
                 visits     = 0
                 revenue    = 0.0
 
-            # When year filter is active and the customer never visited that year
-            # still include them unless status='active'
-            if year_filter and visits == 0 and status_filter == 'active':
+            # last_days / month filter: always hide customers with 0 visits in that range
+            if (last_days_raw or month_raw) and visits == 0:
+                continue
+            # year filter: hide zero-visit customers only when status='active'
+            elif year_filter and visits == 0 and status_filter == 'active':
                 continue
 
             is_active = last_visit is not None and last_visit >= threshold
@@ -611,21 +647,17 @@ class CustomerReportView(APIView):
             if status_filter == 'inactive' and     is_active: continue
 
             report.append({
-                'customer_id':    cid,
-                'customer_name':  cust.customer_name,
-                'phone_number':   cust.phone_number,
-                'email':          cust.email or '',
-                'total_visits':   visits,
+                'customer_id':     cid,
+                'customer_name':   cust.customer_name,
+                'phone_number':    cust.phone_number,
+                'email':           cust.email or '',
+                'total_visits':    visits,
                 'last_visit_date': last_visit.isoformat() if last_visit else None,
-                'total_revenue':  revenue,
-                'is_active':      is_active,
+                'total_revenue':   revenue,
+                'is_active':       is_active,
             })
 
-        # Sort: most recently visited first, never-visited at the end
-        report.sort(
-            key=lambda x: x['last_visit_date'] or '',
-            reverse=True,
-        )
+        report.sort(key=lambda x: x['last_visit_date'] or '', reverse=True)
 
         available_years = sorted(
             [y for y in all_years if y.isdigit()],

@@ -583,20 +583,24 @@ const fmtDateReport = (s) => {
 
 function CustomerReportTable() {
   const toast = useToast();
-  const [allRows, setAllRows]         = useState([]);
-  const [years, setYears]             = useState([]);
-  const [loading, setLoading]         = useState(false);
+  const [allRows, setAllRows]           = useState([]);
+  const [years, setYears]               = useState([]);
+  const [loading, setLoading]           = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
-  const [yearFilter, setYearFilter]   = useState('');
-  const [page, setPage]               = useState(1);
-  const [search, setSearch]           = useState('');
+  const [yearFilter, setYearFilter]     = useState('');
+  const [monthFilter, setMonthFilter]   = useState('');   // YYYY-MM
+  const [lastDaysFilter, setLastDaysFilter] = useState(''); // integer string
+  const [page, setPage]                 = useState(1);
+  const [search, setSearch]             = useState('');
 
   const fetchReport = async () => {
     setLoading(true);
     try {
       const params = {};
-      if (statusFilter) params.status = statusFilter;
-      if (yearFilter)   params.year   = yearFilter;
+      if (statusFilter)   params.status    = statusFilter;
+      if (lastDaysFilter) params.last_days = lastDaysFilter;
+      else if (monthFilter) params.month   = monthFilter;
+      else if (yearFilter)  params.year    = yearFilter;
       const data = await getCustomerReport(params);
       setAllRows(data.customers || []);
       if (data.available_years?.length) setYears(data.available_years);
@@ -611,7 +615,7 @@ function CustomerReportTable() {
   useEffect(() => {
     setPage(1);
     fetchReport();
-  }, [statusFilter, yearFilter]); // eslint-disable-line
+  }, [statusFilter, yearFilter, monthFilter, lastDaysFilter]); // eslint-disable-line
 
   // Client-side search filter
   const filtered = useMemo(() => {
@@ -645,7 +649,8 @@ function CustomerReportTable() {
     // Auto column widths
     const cols = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length, 14) }));
     ws['!cols'] = cols;
-    XLSX.writeFile(wb, `customer-report${yearFilter ? '-' + yearFilter : ''}${statusFilter ? '-' + statusFilter : ''}.xlsx`);
+    const rangeSuffix = lastDaysFilter ? `-last${lastDaysFilter}days` : monthFilter ? `-${monthFilter}` : yearFilter ? `-${yearFilter}` : '';
+    XLSX.writeFile(wb, `customer-report${rangeSuffix}${statusFilter ? '-' + statusFilter : ''}.xlsx`);
   };
 
   return (
@@ -670,34 +675,89 @@ function CustomerReportTable() {
       </div>
 
       {/* Filters */}
-      <div className="px-4 sm:px-5 py-3 border-b border-border grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="relative">
-          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-          <input
-            type="text"
-            placeholder="Search name, phone, email…"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            className="w-full bg-bg border border-border rounded-md pl-8 pr-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
-          />
+      <div className="px-4 sm:px-5 py-3 border-b border-border space-y-3">
+        {/* Row 1: search + status */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="relative">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              type="text"
+              placeholder="Search name, phone, email…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              className="w-full bg-bg border border-border rounded-md pl-8 pr-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+            />
+          </div>
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none"
+          >
+            <option value="">All Statuses</option>
+            <option value="active">Active (last 45 days)</option>
+            <option value="inactive">Inactive</option>
+          </select>
         </div>
-        <select
-          value={statusFilter}
-          onChange={e => setStatusFilter(e.target.value)}
-          className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none"
-        >
-          <option value="">All Statuses</option>
-          <option value="active">Active (last 45 days)</option>
-          <option value="inactive">Inactive</option>
-        </select>
-        <select
-          value={yearFilter}
-          onChange={e => setYearFilter(e.target.value)}
-          className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none"
-        >
-          <option value="">All Years</option>
-          {years.map(y => <option key={y} value={y}>{y}</option>)}
-        </select>
+
+        {/* Row 2: date-range filters (mutually exclusive) */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Last N days */}
+          <div>
+            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Last N Days</label>
+            <input
+              type="number"
+              min="1"
+              placeholder="e.g. 30"
+              value={lastDaysFilter}
+              onChange={e => {
+                setLastDaysFilter(e.target.value);
+                if (e.target.value) { setMonthFilter(''); setYearFilter(''); }
+              }}
+              className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+            />
+          </div>
+
+          {/* Month picker */}
+          <div>
+            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Month</label>
+            <input
+              type="month"
+              value={monthFilter}
+              onChange={e => {
+                setMonthFilter(e.target.value);
+                if (e.target.value) { setLastDaysFilter(''); setYearFilter(''); }
+              }}
+              className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none"
+            />
+          </div>
+
+          {/* Year picker */}
+          <div>
+            <label className="block text-[10px] text-gray-500 mb-1 uppercase tracking-wide">Year</label>
+            <select
+              value={yearFilter}
+              onChange={e => {
+                setYearFilter(e.target.value);
+                if (e.target.value) { setLastDaysFilter(''); setMonthFilter(''); }
+              }}
+              className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none"
+            >
+              <option value="">All Years</option>
+              {years.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* Clear date-range filters */}
+        {(lastDaysFilter || monthFilter || yearFilter) && (
+          <button
+            type="button"
+            onClick={() => { setLastDaysFilter(''); setMonthFilter(''); setYearFilter(''); }}
+            className="text-xs text-gray-400 hover:text-gray-200 underline"
+          >
+            Clear date filter
+          </button>
+        )}
       </div>
 
       {/* Table */}
