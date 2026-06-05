@@ -14,6 +14,9 @@ from .views import (
     SalesInventoryListView,
     JobCardSalesProductListCreateView,
     JobCardSalesProductDeleteView,
+    SalesOrderListCreateView,
+    SalesOrderDeleteView,
+    SalesAnalyticsView,
 )
 
 urlpatterns = [
@@ -49,8 +52,13 @@ urlpatterns = [
     path('customer-tiers/',     CustomerTiersView.as_view(),     name='customer-tiers'),
     path('customer-report/',    CustomerReportView.as_view(),    name='customer-report'),
 
-    # Sales Products
+    # Sales Products (job-card linked)
     path('sales-inventory/',                        SalesInventoryListView.as_view(),              name='sales-inventory-list'),
     path('<int:jobcard_pk>/sales-products/',         JobCardSalesProductListCreateView.as_view(),   name='jobcard-sales-product-list'),
     path('sales-products/<int:pk>/',                JobCardSalesProductDeleteView.as_view(),        name='jobcard-sales-product-delete'),
+
+    # Standalone Sales Orders
+    path('sales-orders/',            SalesOrderListCreateView.as_view(), name='sales-order-list'),
+    path('sales-orders/<int:pk>/',   SalesOrderDeleteView.as_view(),     name='sales-order-delete'),
+    path('sales-analytics/',         SalesAnalyticsView.as_view(),       name='sales-analytics'),
 ]

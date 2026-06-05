@@ -16,6 +16,7 @@ import CustomerDetail from './pages/Customers/Detail';
 import VehicleDetail from './pages/Customers/VehicleDetail';
 import Services from './pages/Services';
 import ServiceDetail from './pages/Services/Detail';
+import Sales from './pages/Sales';
 import Employees from './pages/Employees';
 import Vendors from './pages/Vendors';
 import Finance from './pages/Finance';
@@ -41,6 +42,7 @@ export default function App() {
             <Route path="customers/:id" element={<CustomerDetail />} />
             <Route path="services" element={<Services />} />
             <Route path="services/:id" element={<ServiceDetail />} />
+            <Route path="sales" element={<Sales />} />
             <Route path="employees/*" element={<Employees />} />
             <Route path="vendors/*" element={<Vendors />} />
             <Route path="finance" element={<Finance />} />

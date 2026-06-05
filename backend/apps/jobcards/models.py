@@ -110,6 +110,52 @@ class JobCardProductUsage(models.Model): # This model represents the actual usag
         return f"{self.job_card_product.job_card_service.job_card.job_card_number}  - {self.quantity_used}"
 
 
+class SalesOrder(models.Model):
+    """Standalone retail sale — not tied to any job card."""
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'), ('upi', 'UPI'), ('card', 'Card'),
+        ('netbanking', 'Net Banking'), ('cheque', 'Cheque'), ('other', 'Other'),
+    ]
+    order_number   = models.CharField(max_length=255, unique=True, blank=True)
+    customer       = models.ForeignKey('customers.Customer', on_delete=models.SET_NULL, null=True, blank=True, related_name='sales_orders')
+    customer_name  = models.CharField(max_length=255)
+    phone_number   = models.CharField(max_length=20, blank=True)
+    sale_date      = models.DateField()
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash')
+    notes          = models.TextField(blank=True)
+    created_at     = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.order_number:
+            year = (self.sale_date or timezone.now().date()).year
+            prefix = f'SO-{year}-'
+            existing = SalesOrder.objects.filter(
+                order_number__startswith=prefix
+            ).values_list('order_number', flat=True)
+            nums = []
+            for n in existing:
+                try:
+                    nums.append(int(n[len(prefix):]))
+                except (ValueError, IndexError):
+                    pass
+            self.order_number = f'{prefix}{(max(nums) + 1 if nums else 1):03d}'
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.order_number
+
+
+class SalesOrderItem(models.Model):
+    """Line item for a SalesOrder (decrements inventory on create)."""
+    sales_order = models.ForeignKey(SalesOrder, related_name='items', on_delete=models.CASCADE)
+    inventory   = models.ForeignKey('vendors.Inventory', on_delete=models.PROTECT)
+    quantity    = models.DecimalField(max_digits=10, decimal_places=2)
+    unit_price  = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.sales_order.order_number} – {self.inventory.product.product_name}"
+
+
 class JobCardSalesProduct(models.Model):
     """Retail product sold directly on this job card (category='sales' inventory items)."""
     job_card   = models.ForeignKey(JobCard, related_name='sales_products', on_delete=models.CASCADE)

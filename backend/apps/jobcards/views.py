@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage, JobCardSalesProduct
+from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage, JobCardSalesProduct, SalesOrder
 from apps.customers.models import Customer, CustomerAsset
 from .serializers import (
     JobCardSerializer,
@@ -22,6 +22,8 @@ from .serializers import (
     JobCardSalesProductSerializer,
     JobCardSalesProductCreateSerializer,
     SalesInventorySerializer,
+    SalesOrderSerializer,
+    SalesOrderCreateSerializer,
 )
 from apps.services.models import ServiceProduct
 from apps.vendors.models import Inventory
@@ -761,3 +763,254 @@ class JobCardSalesProductDeleteView(APIView):
         inv.save(update_fields=['quantity_available'])
         sp.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ── Standalone Sales ──────────────────────────────────────────────────────────
+
+class SalesOrderListCreateView(APIView):
+    def get(self, request):
+        qs = SalesOrder.objects.prefetch_related(
+            'items__inventory__product'
+        ).order_by('-sale_date', '-created_at')
+        search = request.query_params.get('search', '')
+        date   = request.query_params.get('date', '')
+        if search:
+            from django.db.models import Q as DQ
+            qs = qs.filter(
+                DQ(customer_name__icontains=search) |
+                DQ(phone_number__icontains=search) |
+                DQ(order_number__icontains=search)
+            )
+        if date:
+            qs = qs.filter(sale_date=date)
+        return Response(SalesOrderSerializer(qs, many=True).data)
+
+    def post(self, request):
+        ser = SalesOrderCreateSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        order = ser.save()
+        return Response(SalesOrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
+
+class SalesOrderDeleteView(APIView):
+    @transaction.atomic
+    def delete(self, request, pk):
+        try:
+            order = SalesOrder.objects.prefetch_related('items__inventory').get(pk=pk)
+        except SalesOrder.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        for item in order.items.all():
+            inv = item.inventory
+            inv.quantity_available += item.quantity
+            inv.save(update_fields=['quantity_available'])
+        order.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class SalesAnalyticsView(APIView):
+    """
+    Returns combined analytics + unified feed for the Sales dashboard.
+    Combines data from SalesOrder (standalone) and JobCardSalesProduct (job-card-linked).
+    """
+    def get(self, request):
+        from decimal import Decimal
+        from collections import defaultdict
+
+        # ── 1. Standalone sales ───────────────────────────────────────────
+        standalone_product_map = defaultdict(lambda: {'quantity': Decimal('0'), 'revenue': Decimal('0'), 'brand': ''})
+        standalone_customer_map = defaultdict(lambda: {'name': '', 'phone': '', 'spent': Decimal('0'), 'count': 0})
+        standalone_revenue = Decimal('0')
+        standalone_count   = 0
+
+        standalone_orders = SalesOrder.objects.prefetch_related('items__inventory__product').order_by('-sale_date', '-created_at')
+        for order in standalone_orders:
+            total = sum((it.unit_price * it.quantity for it in order.items.all()), Decimal('0'))
+            standalone_revenue += total
+            standalone_count   += 1
+            key = order.customer_name.strip().lower()
+            standalone_customer_map[key]['name']  = order.customer_name
+            standalone_customer_map[key]['phone'] = order.phone_number
+            standalone_customer_map[key]['spent'] += total
+            standalone_customer_map[key]['count'] += 1
+            for it in order.items.all():
+                pkey = f"{it.inventory.product.product_name}|{it.inventory.brand}"
+                standalone_product_map[pkey]['quantity'] += it.quantity
+                standalone_product_map[pkey]['revenue']  += it.unit_price * it.quantity
+                standalone_product_map[pkey]['brand']     = it.inventory.brand
+                standalone_product_map[pkey]['name']      = it.inventory.product.product_name
+
+        # ── 2. Job-card sales ─────────────────────────────────────────────
+        jc_sales = JobCardSalesProduct.objects.select_related(
+            'job_card__customer_asset__customer', 'inventory__product'
+        ).all()
+
+        jc_product_map = defaultdict(lambda: {'quantity': Decimal('0'), 'revenue': Decimal('0'), 'brand': '', 'name': ''})
+        jc_customer_map = defaultdict(lambda: {'name': '', 'phone': '', 'spent': Decimal('0'), 'count': 0, 'jc_nos': set()})
+        jc_revenue = Decimal('0')
+
+        for sp in jc_sales:
+            line = sp.unit_price * sp.quantity
+            jc_revenue += line
+            pkey = f"{sp.inventory.product.product_name}|{sp.inventory.brand}"
+            jc_product_map[pkey]['quantity'] += sp.quantity
+            jc_product_map[pkey]['revenue']  += line
+            jc_product_map[pkey]['brand']     = sp.inventory.brand
+            jc_product_map[pkey]['name']      = sp.inventory.product.product_name
+            cust = sp.job_card.customer_asset.customer
+            ckey = cust.id
+            jc_customer_map[ckey]['name']  = cust.customer_name
+            jc_customer_map[ckey]['phone'] = cust.phone_number
+            jc_customer_map[ckey]['spent'] += line
+            jc_customer_map[ckey]['jc_nos'].add(sp.job_card_id)
+        for v in jc_customer_map.values():
+            v['count'] = len(v.pop('jc_nos'))
+
+        jc_count = JobCardSalesProduct.objects.values('job_card').distinct().count()
+
+        # ── 3. Combined product ranking ───────────────────────────────────
+        combined = defaultdict(lambda: {'quantity': Decimal('0'), 'revenue': Decimal('0'), 'brand': '', 'name': ''})
+        for pkey, v in {**standalone_product_map, **jc_product_map}.items():
+            combined[pkey]['quantity'] += v['quantity']
+            combined[pkey]['revenue']  += v['revenue']
+            combined[pkey]['brand']     = v['brand']
+            combined[pkey]['name']      = v['name']
+        # Re-merge properly
+        merged_products = {}
+        for pkey, v in standalone_product_map.items():
+            merged_products[pkey] = dict(v)
+        for pkey, v in jc_product_map.items():
+            if pkey in merged_products:
+                merged_products[pkey]['quantity'] += v['quantity']
+                merged_products[pkey]['revenue']  += v['revenue']
+            else:
+                merged_products[pkey] = dict(v)
+
+        sorted_products = sorted(merged_products.values(), key=lambda x: x['revenue'], reverse=True)
+        top_products    = sorted_products[:5]
+        bottom_products = sorted_products[-5:] if len(sorted_products) > 5 else []
+
+        # ── 4. Combined customer ranking ──────────────────────────────────
+        merged_customers = {}
+        for k, v in standalone_customer_map.items():
+            merged_customers[('standalone', k)] = {'name': v['name'], 'phone': v['phone'], 'spent': v['spent'], 'count': v['count']}
+        for k, v in jc_customer_map.items():
+            label = ('jc', k)
+            if label in merged_customers:
+                merged_customers[label]['spent'] += v['spent']
+                merged_customers[label]['count'] += v['count']
+            else:
+                merged_customers[label] = {'name': v['name'], 'phone': v['phone'], 'spent': v['spent'], 'count': v['count']}
+        top_customers = sorted(merged_customers.values(), key=lambda x: x['spent'], reverse=True)[:5]
+
+        # ── 5. Feed (unified table rows) ──────────────────────────────────
+        feed = []
+        for order in standalone_orders:
+            items_list = [
+                {
+                    'product_name': it.inventory.product.product_name,
+                    'brand':        it.inventory.brand,
+                    'quantity':     str(it.quantity),
+                    'unit_price':   str(it.unit_price),
+                    'unit':         it.inventory.product.product_unit,
+                    'unit_amount':  str(it.inventory.unit_amount),
+                    'line_total':   str((it.unit_price * it.quantity).quantize(Decimal('0.01'))),
+                }
+                for it in order.items.all()
+            ]
+            total = sum((Decimal(i['line_total']) for i in items_list), Decimal('0'))
+            feed.append({
+                'type':           'standalone',
+                'id':             order.id,
+                'order_number':   order.order_number,
+                'date':           str(order.sale_date),
+                'customer_name':  order.customer_name,
+                'phone_number':   order.phone_number,
+                'vehicle_number': None,
+                'items':          items_list,
+                'total_amount':   str(total.quantize(Decimal('0.01'))),
+                'payment_method': order.payment_method,
+                'notes':          order.notes,
+            })
+
+        # Job-card sales grouped by job card
+        from collections import defaultdict as dd
+        jc_grouped = dd(list)
+        jc_meta    = {}
+        for sp in jc_sales:
+            jc = sp.job_card
+            jc_grouped[jc.id].append(sp)
+            if jc.id not in jc_meta:
+                cust = jc.customer_asset.customer
+                jc_meta[jc.id] = {
+                    'job_card_number': jc.job_card_number,
+                    'date':            str(jc.job_card_date),
+                    'customer_name':   cust.customer_name,
+                    'phone_number':    cust.phone_number,
+                    'vehicle_number':  jc.customer_asset.vehicle_number,
+                }
+        for jc_id, sps in jc_grouped.items():
+            items_list = [
+                {
+                    'product_name': sp.inventory.product.product_name,
+                    'brand':        sp.inventory.brand,
+                    'quantity':     str(sp.quantity),
+                    'unit_price':   str(sp.unit_price),
+                    'unit':         sp.inventory.product.product_unit,
+                    'unit_amount':  str(sp.inventory.unit_amount),
+                    'line_total':   str((sp.unit_price * sp.quantity).quantize(Decimal('0.01'))),
+                }
+                for sp in sps
+            ]
+            total = sum((Decimal(i['line_total']) for i in items_list), Decimal('0'))
+            meta  = jc_meta[jc_id]
+            feed.append({
+                'type':           'job_card',
+                'id':             jc_id,
+                'order_number':   meta['job_card_number'],
+                'date':           meta['date'],
+                'customer_name':  meta['customer_name'],
+                'phone_number':   meta['phone_number'],
+                'vehicle_number': meta['vehicle_number'],
+                'items':          items_list,
+                'total_amount':   str(total.quantize(Decimal('0.01'))),
+                'payment_method': None,
+                'notes':          '',
+            })
+
+        feed.sort(key=lambda x: x['date'], reverse=True)
+
+        total_revenue   = standalone_revenue + jc_revenue
+        today_str = str(timezone.now().date())
+        today_revenue   = sum(
+            (Decimal(r['total_amount']) for r in feed if r['date'] == today_str),
+            Decimal('0')
+        )
+
+        return Response({
+            'analytics': {
+                'total_revenue':      str(total_revenue.quantize(Decimal('0.01'))),
+                'today_revenue':      str(today_revenue.quantize(Decimal('0.01'))),
+                'standalone_count':   standalone_count,
+                'jc_count':           jc_count,
+                'top_products':       [
+                    {'name': p['name'], 'brand': p['brand'],
+                     'quantity': str(p['quantity']), 'revenue': str(p['revenue'].quantize(Decimal('0.01')))}
+                    for p in top_products
+                ],
+                'bottom_products':    [
+                    {'name': p['name'], 'brand': p['brand'],
+                     'quantity': str(p['quantity']), 'revenue': str(p['revenue'].quantize(Decimal('0.01')))}
+                    for p in reversed(bottom_products)
+                ],
+                'top_customers':      [
+                    {'name': c['name'], 'phone': c['phone'],
+                     'spent': str(c['spent'].quantize(Decimal('0.01'))), 'count': c['count']}
+                    for c in top_customers
+                ],
+                'sales_by_type': {
+                    'standalone': {'count': standalone_count, 'revenue': str(standalone_revenue.quantize(Decimal('0.01')))},
+                    'job_card':   {'count': jc_count,         'revenue': str(jc_revenue.quantize(Decimal('0.01')))},
+                },
+            },
+            'feed': feed,
+        })

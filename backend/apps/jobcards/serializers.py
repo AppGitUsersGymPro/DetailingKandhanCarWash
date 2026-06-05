@@ -6,7 +6,7 @@ from django.db.models import Q
 from apps.customers.models import Customer, CustomerAsset, normalize_phone
 from apps.services.models import Service, ServiceProduct, ServiceVehiclePrice
 from apps.vendors.models import Inventory
-from .models import JobCard, JobCardProduct, JobCardProductUsage, JobCardService, JobCardEmployee, JobCardPayment, JobCardSalesProduct
+from .models import JobCard, JobCardProduct, JobCardProductUsage, JobCardService, JobCardEmployee, JobCardPayment, JobCardSalesProduct, SalesOrder, SalesOrderItem
 
 
 class JobCardEmployeeSerializer(serializers.ModelSerializer):
@@ -498,3 +498,108 @@ class JobCardSalesProductCreateSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return JobCardSalesProductSerializer(instance).data
+
+
+# ── Standalone Sales ──────────────────────────────────────────────────────────
+
+class SalesOrderItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='inventory.product.product_name', read_only=True)
+    brand        = serializers.CharField(source='inventory.brand', read_only=True)
+    unit         = serializers.CharField(source='inventory.product.product_unit', read_only=True)
+    unit_amount  = serializers.DecimalField(source='inventory.unit_amount', max_digits=10, decimal_places=2, read_only=True)
+    line_total   = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = SalesOrderItem
+        fields = ['id', 'inventory', 'product_name', 'brand', 'unit', 'unit_amount',
+                  'quantity', 'unit_price', 'line_total']
+
+    def get_line_total(self, obj):
+        return str((obj.unit_price * obj.quantity).quantize(Decimal('0.01')))
+
+
+class SalesOrderSerializer(serializers.ModelSerializer):
+    items        = SalesOrderItemSerializer(many=True, read_only=True)
+    total_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = SalesOrder
+        fields = ['id', 'order_number', 'customer', 'customer_name', 'phone_number',
+                  'sale_date', 'payment_method', 'notes', 'created_at', 'items', 'total_amount']
+
+    def get_total_amount(self, obj):
+        total = sum(
+            (it.unit_price * it.quantity for it in obj.items.all()),
+            Decimal('0')
+        )
+        return str(total.quantize(Decimal('0.01')))
+
+
+class SalesOrderCreateSerializer(serializers.Serializer):
+    customer_id    = serializers.IntegerField(required=False, allow_null=True)
+    customer_name  = serializers.CharField()
+    phone_number   = serializers.CharField(allow_blank=True, required=False, default='')
+    sale_date      = serializers.DateField()
+    payment_method = serializers.CharField(default='cash')
+    notes          = serializers.CharField(allow_blank=True, required=False, default='')
+    items          = serializers.ListField(child=serializers.DictField(), allow_empty=False)
+
+    def validate(self, attrs):
+        validated_items = []
+        for item in attrs['items']:
+            try:
+                inv = Inventory.objects.select_related('product').get(
+                    pk=item['inventory_id'],
+                    product__category='sales',
+                )
+            except (Inventory.DoesNotExist, KeyError):
+                raise serializers.ValidationError({'items': f'Inventory item not found.'})
+
+            qty = Decimal(str(item.get('quantity', 0)))
+            if qty <= 0:
+                raise serializers.ValidationError({'items': 'Quantity must be positive.'})
+            if inv.quantity_available < qty:
+                raise serializers.ValidationError(
+                    {'items': f'Only {inv.quantity_available} in stock for {inv.product.product_name}.'}
+                )
+            price = Decimal(str(item['unit_price'])) if item.get('unit_price') else (inv.selling_price or Decimal('0'))
+            validated_items.append({'inventory': inv, 'quantity': qty, 'unit_price': price})
+
+        attrs['_validated_items'] = validated_items
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        items      = validated_data.pop('_validated_items')
+        validated_data.pop('items')
+        cust_id    = validated_data.pop('customer_id', None)
+
+        customer = None
+        if cust_id:
+            try:
+                customer = Customer.objects.get(pk=cust_id)
+            except Customer.DoesNotExist:
+                pass
+
+        order = SalesOrder.objects.create(
+            customer=customer,
+            customer_name=validated_data['customer_name'],
+            phone_number=validated_data.get('phone_number', ''),
+            sale_date=validated_data['sale_date'],
+            payment_method=validated_data.get('payment_method', 'cash'),
+            notes=validated_data.get('notes', ''),
+        )
+        for it in items:
+            SalesOrderItem.objects.create(
+                sales_order=order,
+                inventory=it['inventory'],
+                quantity=it['quantity'],
+                unit_price=it['unit_price'],
+            )
+            it['inventory'].quantity_available -= it['quantity']
+            it['inventory'].save(update_fields=['quantity_available'])
+
+        return order
+
+    def to_representation(self, instance):
+        return SalesOrderSerializer(instance).data
