@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import SearchableSelect from '../../components/SearchableSelect';
 import { createPortal } from 'react-dom';
 import { Plus, Receipt, Trash2, Eye, CreditCard, Printer, X, Download, FileSpreadsheet, Search } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
@@ -232,16 +233,16 @@ export default function InvoicesTab() {
 
         {/* Row 1: vendor dropdown + status chips */}
         <div className="flex flex-wrap items-center gap-3">
-          <Select
+          <SearchableSelect
             value={vendorFilter}
-            onChange={(e) => setVendorFilter(e.target.value)}
-            className="flex-1 min-w-[180px] h-8 text-sm"
-          >
-            <option value="">All vendors</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={String(v.id)}>{v.vendor_name}</option>
-            ))}
-          </Select>
+            onChange={setVendorFilter}
+            options={[
+              { value: '', label: 'All vendors' },
+              ...vendors.map(v => ({ value: String(v.id), label: v.vendor_name })),
+            ]}
+            placeholder="All vendors"
+            className="flex-1 min-w-[180px]"
+          />
 
           <div className="flex items-center gap-1">
             {[
@@ -753,10 +754,15 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Field label="Vendor" required error={errors.vendor}>
-            <Select value={vendorId} onChange={(e) => setVendorId(e.target.value)}>
-              <option value="">Select vendor…</option>
-              {vendors.map((v) => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
-            </Select>
+            <SearchableSelect
+              value={String(vendorId)}
+              onChange={setVendorId}
+              options={[
+                { value: '', label: 'Select vendor…' },
+                ...vendors.map(v => ({ value: String(v.id), label: v.vendor_name })),
+              ]}
+              placeholder="Select vendor…"
+            />
           </Field>
           <Field label="Invoice Date" required error={errors.invoice_date}>
             <Input type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
@@ -782,10 +788,15 @@ function CreateInvoiceModal({ open, onClose, onSaved, vendors, products, brands 
                 {/* Product */}
                 <div className="col-span-12 md:col-span-3">
                   <Field label={idx === 0 ? 'Product' : null}>
-                    <Select value={it.product} onChange={(e) => selectProduct(idx, e.target.value)}>
-                      <option value="">Select…</option>
-                      {products.map((p) => <option key={p.id} value={p.id}>{p.product_name} ({p.product_unit})</option>)}
-                    </Select>
+                    <SearchableSelect
+                      value={String(it.product)}
+                      onChange={(v) => selectProduct(idx, v)}
+                      options={[
+                        { value: '', label: 'Select product…' },
+                        ...products.map(p => ({ value: String(p.id), label: `${p.product_name} (${p.product_unit})` })),
+                      ]}
+                      placeholder="Select product…"
+                    />
                   </Field>
                 </div>
                 {/* Brand */}

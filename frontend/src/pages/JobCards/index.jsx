@@ -8,6 +8,7 @@ import Badge from '../../components/Badge';
 import EmptyState from '../../components/EmptyState';
 import Table from '../../components/Table';
 import { Input, Select } from '../../components/Field';
+import SearchableSelect from '../../components/SearchableSelect';
 import { useToast } from '../../components/Toast';
 import { listJobCards, listJobCardsByType, getCustomerTiers } from '../../api/jobcards';
 import { listVehicleCompanies, listVehicleModels } from '../../api/customers';
@@ -405,25 +406,34 @@ export default function JobCardsList() {
         </div>
         {/* Row 3: employee + company + model + usage + payment */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          <Select value={employeeFilter} onChange={(e) => setEmployeeFilter(e.target.value)}>
-            <option value="">All Employees</option>
-            {employees.map(e => <option key={e.id} value={e.id}>{e.employee_name}</option>)}
-          </Select>
-          <Select
+          <SearchableSelect
+            value={String(employeeFilter)}
+            onChange={setEmployeeFilter}
+            options={[
+              { value: '', label: 'All Employees' },
+              ...employees.map(e => ({ value: String(e.id), label: e.employee_name })),
+            ]}
+            placeholder="All Employees"
+          />
+          <SearchableSelect
             value={companyFilter}
-            onChange={(e) => { setCompanyFilter(e.target.value); setModelFilter(''); }}
-          >
-            <option value="">All Companies</option>
-            {companies.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-          </Select>
-          <Select
+            onChange={(v) => { setCompanyFilter(v); setModelFilter(''); }}
+            options={[
+              { value: '', label: 'All Companies' },
+              ...companies.map(c => ({ value: c.name, label: c.name })),
+            ]}
+            placeholder="All Companies"
+          />
+          <SearchableSelect
             value={modelFilter}
-            onChange={(e) => setModelFilter(e.target.value)}
+            onChange={setModelFilter}
+            options={[
+              { value: '', label: companyFilter ? 'All Models' : 'Select company first' },
+              ...models.map(m => ({ value: m.name, label: m.name })),
+            ]}
+            placeholder={companyFilter ? 'All Models' : 'Select company first'}
             disabled={!companyFilter}
-          >
-            <option value="">{companyFilter ? 'All Models' : 'Select company first'}</option>
-            {models.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-          </Select>
+          />
           <Select value={usageFilter} onChange={(e) => setUsageFilter(e.target.value)}>
             <option value="">All Usage Statuses</option>
             <option value="complete">✓ Usages Complete</option>
