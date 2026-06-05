@@ -26,3 +26,9 @@ export const listVehicleModels = (params) => api.get('customers/vehicle-models/'
 export const createVehicleModel = (data) => api.post('customers/vehicle-models/', data).then(r => r.data);
 export const listVehicleColours = (params) => api.get('customers/vehicle-colours/', { params }).then(r => r.data);
 export const createVehicleColour = (data) => api.post('customers/vehicle-colours/', data).then(r => r.data);
+
+// Garage owners
+export const listGarageOwners  = (params) => api.get('customers/garages/', { params }).then(r => r.data);
+export const createGarageOwner = (data)   => api.post('customers/garages/', data).then(r => r.data);
+export const updateGarageOwner = (id, data) => api.put(`customers/garages/${id}/`, data).then(r => r.data);
+export const deleteGarageOwner = (id)     => api.delete(`customers/garages/${id}/`).then(r => r.data);

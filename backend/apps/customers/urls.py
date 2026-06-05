@@ -3,6 +3,7 @@ from .views import (
     CustomerAssetDetailView, CustomerListView, CustomerDetailView, CustomerAssetListView,
     VehicleFetchView, CustomerFetchView, AllVehiclesListView,
     VehicleCompanyListView, VehicleModelListView, VehicleColourListView,
+    GarageOwnerListCreateView, GarageOwnerDetailView,
 )
 
 urlpatterns = [
@@ -18,4 +19,7 @@ urlpatterns = [
     path('vehicle-companies/', VehicleCompanyListView.as_view(), name='vehicle-company-list'),
     path('vehicle-models/', VehicleModelListView.as_view(), name='vehicle-model-list'),
     path('vehicle-colours/', VehicleColourListView.as_view(), name='vehicle-colour-list'),
+    # Garage owners
+    path('garages/', GarageOwnerListCreateView.as_view(), name='garage-owner-list'),
+    path('garages/<int:pk>/', GarageOwnerDetailView.as_view(), name='garage-owner-detail'),
 ]

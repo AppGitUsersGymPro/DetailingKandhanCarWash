@@ -107,6 +107,7 @@ export default function JobCardsList() {
   const [modelFilter, setModelFilter]     = useState('');
   const [usageFilter, setUsageFilter]     = useState(''); // '' | 'complete' | 'incomplete'
   const [paymentFilter, setPaymentFilter] = useState(''); // '' | 'paid' | 'partial' | 'unpaid'
+  const [ownerTypeFilter, setOwnerTypeFilter] = useState(''); // '' | 'customer' | 'garage'
   const [employees, setEmployees]         = useState([]);
   const [companies, setCompanies]         = useState([]);
   const [models, setModels]               = useState([]);
@@ -138,6 +139,7 @@ export default function JobCardsList() {
         if (employeeFilter) params.employee = employeeFilter;
         if (companyFilter) params.company = companyFilter;
         if (modelFilter)  params.model   = modelFilter;
+        if (ownerTypeFilter) params.owner_type = ownerTypeFilter;
 
         const [jobsData, twoWheeler, fourWheeler, otherVehicle, active, completed] =
           await Promise.all([
@@ -163,7 +165,7 @@ export default function JobCardsList() {
       }
     }
     loadAll();
-  }, [statusFilter, dateFilter, employeeFilter, companyFilter, modelFilter, refreshKey]); // eslint-disable-line
+  }, [statusFilter, dateFilter, employeeFilter, companyFilter, modelFilter, ownerTypeFilter, refreshKey]); // eslint-disable-line
 
   const filtered = useMemo(() => {
     let list = jobs;
@@ -189,11 +191,20 @@ export default function JobCardsList() {
     },
     {
       key: 'customer_name',
-      header: 'Customer',
+      header: 'Customer / Garage',
       render: (r) => (
         <div className="leading-tight">
-          <div className="text-gray-200">{r.customer_name}</div>
-          {r.phone_number && <div className="text-[10px] text-gray-500 mt-0.5">{r.phone_number}</div>}
+          {r.garage_name ? (
+            <>
+              <div className="text-sky-300 font-medium">{r.garage_name}</div>
+              <div className="text-[10px] text-sky-600 mt-0.5">Garage</div>
+            </>
+          ) : (
+            <>
+              <div className="text-gray-200">{r.customer_name}</div>
+              {r.phone_number && <div className="text-[10px] text-gray-500 mt-0.5">{r.phone_number}</div>}
+            </>
+          )}
         </div>
       ),
     },
@@ -340,6 +351,29 @@ export default function JobCardsList() {
             accent={card.accent}
             onClick={card.route ? () => navigate(card.route) : null}
           />
+        ))}
+      </div>
+
+      {/* ── Owner type quick filter ─────────────────────────────────────── */}
+      <div className="flex items-center gap-1 mb-3 bg-bg-card border border-border rounded-xl px-4 py-3">
+        <span className="text-xs text-gray-500 mr-2 font-medium">Show:</span>
+        {[
+          { v: '',         label: 'All' },
+          { v: 'customer', label: 'Customers' },
+          { v: 'garage',   label: 'Garage' },
+        ].map(({ v, label }) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setOwnerTypeFilter(v)}
+            className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+              ownerTypeFilter === v
+                ? 'bg-accent text-white'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-bg-hover'
+            }`}
+          >
+            {label}
+          </button>
         ))}
       </div>
 

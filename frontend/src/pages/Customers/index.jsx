@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Users, Car, Search, Pencil, Trash2, Filter, BarChart2, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Users, Car, Search, Pencil, Trash2, Filter, BarChart2, Download, ChevronLeft, ChevronRight, Warehouse } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
@@ -20,6 +20,7 @@ import {
 import {
   listCustomers, createCustomer, updateCustomer, deleteCustomer,
   listAllVehicles, listVehicleCompanies,
+  listGarageOwners, createGarageOwner, updateGarageOwner, deleteGarageOwner,
 } from '../../api/customers';
 import { getCustomerAnalytics, getCustomerReport } from '../../api/jobcards';
 import { extractError } from '../../api/axios';
@@ -45,13 +46,13 @@ const VTYPE_LABEL = {
 
 /* ═══ Main page ═════════════════════════════════════════════════════════════ */
 export default function CustomersVehicles() {
-  const [tab, setTab] = useState('customers'); // 'customers' | 'vehicles' | 'analytics'
+  const [tab, setTab] = useState('customers'); // 'customers' | 'vehicles' | 'garages' | 'analytics'
 
   return (
     <div>
       <PageHeader
         title="Customers / Vehicles"
-        subtitle="Manage your customers and their vehicles"
+        subtitle="Manage your customers, vehicles, garages and analytics"
       />
 
       {/* Tab switch */}
@@ -62,12 +63,18 @@ export default function CustomersVehicles() {
         <TabBtn active={tab === 'vehicles'} onClick={() => setTab('vehicles')} icon={<Car size={14} />}>
           Vehicles
         </TabBtn>
+        <TabBtn active={tab === 'garages'} onClick={() => setTab('garages')} icon={<Warehouse size={14} />}>
+          Garages
+        </TabBtn>
         <TabBtn active={tab === 'analytics'} onClick={() => setTab('analytics')} icon={<BarChart2 size={14} />}>
           Analytics
         </TabBtn>
       </div>
 
-      {tab === 'customers' ? <CustomersTab /> : tab === 'vehicles' ? <VehiclesTab /> : <AnalyticsTab />}
+      {tab === 'customers' ? <CustomersTab />
+        : tab === 'vehicles' ? <VehiclesTab />
+        : tab === 'garages'  ? <GaragesTab />
+        : <AnalyticsTab />}
     </div>
   );
 }
@@ -344,6 +351,210 @@ function VehiclesTab() {
         />
       )}
     </>
+  );
+}
+
+/* ═══ Garages tab ════════════════════════════════════════════════════════════ */
+function GaragesTab() {
+  const toast = useToast();
+  const [loading, setLoading]       = useState(true);
+  const [garages, setGarages]       = useState([]);
+  const [search, setSearch]         = useState('');
+  const [modal, setModal]           = useState(null); // null | { mode:'create'|'edit', data? }
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [delLoading, setDelLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const data = await listGarageOwners(search ? { q: search } : undefined);
+      setGarages(Array.isArray(data) ? data : []);
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    const t = setTimeout(load, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [search]);
+
+  const onDelete = async () => {
+    if (!confirmDel) return;
+    setDelLoading(true);
+    try {
+      await deleteGarageOwner(confirmDel.id);
+      toast.success('Garage deleted');
+      setConfirmDel(null);
+      load();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setDelLoading(false);
+    }
+  };
+
+  const columns = [
+    { key: 'garage_name', header: 'Garage Name', render: (r) => <span className="font-medium text-gray-100">{r.garage_name}</span> },
+    { key: 'name',        header: 'Contact Person', render: (r) => <span className="text-gray-300">{r.name}</span> },
+    { key: 'phone_number', header: 'Phone' },
+    { key: 'email',       header: 'Email',    render: (r) => r.email || <span className="text-gray-500">—</span> },
+    { key: 'location',    header: 'Location', render: (r) => r.location ? <span className="text-gray-400 text-xs">{r.location}</span> : <span className="text-gray-600">—</span> },
+    { key: 'gstin',       header: 'GSTIN',    render: (r) => r.gstin ? <code className="text-xs bg-bg-elev px-1.5 py-0.5 rounded text-gray-400">{r.gstin}</code> : <span className="text-gray-600">—</span> },
+    {
+      key: 'actions',
+      header: '',
+      render: (r) => (
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent">
+            <Pencil size={14} />
+          </button>
+          <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400">
+            <Trash2 size={14} />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="relative flex-1 max-w-md">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+          <Input
+            placeholder="Search garages by name, contact or phone…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Garage</Button>
+      </div>
+
+      {loading ? (
+        <Loading />
+      ) : garages.length === 0 ? (
+        <EmptyState
+          icon={Warehouse}
+          title="No garages yet"
+          message={search ? 'Try a different search.' : 'Add your first garage to get started.'}
+          action={<Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Garage</Button>}
+        />
+      ) : (
+        <Table columns={columns} rows={garages} />
+      )}
+
+      <GarageFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} />
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={onDelete}
+        loading={delLoading}
+        title={`Delete ${confirmDel?.garage_name}?`}
+        message="This garage and its linked records will be removed."
+      />
+    </>
+  );
+}
+
+function GarageFormModal({ modal, onClose, onSaved }) {
+  const toast = useToast();
+  const [form, setForm] = useState({ name: '', garage_name: '', location: '', gstin: '', phone_number: '', email: '', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (!modal) return;
+    if (modal.mode === 'edit') {
+      const d = modal.data;
+      setForm({ name: d.name || '', garage_name: d.garage_name || '', location: d.location || '', gstin: d.gstin || '', phone_number: d.phone_number || '', email: d.email || '', notes: d.notes || '' });
+    } else {
+      setForm({ name: '', garage_name: '', location: '', gstin: '', phone_number: '', email: '', notes: '' });
+    }
+    setErrors({});
+  }, [modal]);
+
+  const upd = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const eMap = {};
+    if (!form.name.trim())         eMap.name         = 'Required';
+    if (!form.garage_name.trim())  eMap.garage_name  = 'Required';
+    if (!form.phone_number.trim()) eMap.phone_number = 'Required';
+    setErrors(eMap);
+    if (Object.keys(eMap).length) return;
+    setSubmitting(true);
+    try {
+      const payload = { ...form, email: form.email || null };
+      if (modal.mode === 'edit') {
+        await updateGarageOwner(modal.data.id, payload);
+        toast.success('Garage updated');
+      } else {
+        await createGarageOwner(payload);
+        toast.success('Garage added');
+      }
+      onSaved();
+      onClose();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const { Field: _F, Input: _I } = { Field, Input }; // already imported at top
+
+  return (
+    <Modal
+      open={!!modal}
+      onClose={onClose}
+      title={modal?.mode === 'edit' ? 'Edit Garage' : 'Add Garage'}
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} loading={submitting}>{modal?.mode === 'edit' ? 'Save' : 'Add'}</Button>
+        </>
+      }
+    >
+      <form onSubmit={submit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Field label="Garage Name" required error={errors.garage_name}>
+          <Input value={form.garage_name} onChange={(e) => upd('garage_name', e.target.value)} placeholder="e.g. Sunrise Auto Works" />
+        </Field>
+        <Field label="Contact Person Name" required error={errors.name}>
+          <Input value={form.name} onChange={(e) => upd('name', e.target.value)} placeholder="e.g. Rajan Kumar" />
+        </Field>
+        <Field label="Phone Number" required error={errors.phone_number}>
+          <Input value={form.phone_number} onChange={(e) => upd('phone_number', e.target.value)} placeholder="+91 9000000000" />
+        </Field>
+        <Field label="Email" error={errors.email}>
+          <Input type="email" value={form.email} onChange={(e) => upd('email', e.target.value)} placeholder="garage@email.com (optional)" />
+        </Field>
+        <Field label="GSTIN" error={errors.gstin}>
+          <Input value={form.gstin} onChange={(e) => upd('gstin', e.target.value)} placeholder="e.g. 29ABCDE1234F1Z5 (optional)" />
+        </Field>
+        <Field label="Location">
+          <Input value={form.location} onChange={(e) => upd('location', e.target.value)} placeholder="Area, City" />
+        </Field>
+        <div className="md:col-span-2">
+          <Field label="Notes">
+            <textarea
+              value={form.notes}
+              onChange={(e) => upd('notes', e.target.value)}
+              rows={2}
+              placeholder="Any additional details…"
+              className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none resize-none"
+            />
+          </Field>
+        </div>
+      </form>
+    </Modal>
   );
 }
 

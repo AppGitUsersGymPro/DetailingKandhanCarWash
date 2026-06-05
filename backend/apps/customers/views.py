@@ -2,10 +2,11 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Q
-from .models import Customer, CustomerAsset, VehicleCompany, VehicleModel, VehicleColour, normalize_phone
+from .models import Customer, CustomerAsset, VehicleCompany, VehicleModel, VehicleColour, GarageOwner, normalize_phone
 from .serializers import (
     CustomerSerializer, CustomerAssetSerializer,
     VehicleCompanySerializer, VehicleModelSerializer, VehicleColourSerializer,
+    GarageOwnerSerializer,
 )
 
 
@@ -157,25 +158,39 @@ class VehicleFetchView(APIView):
         vehicle_number = request.query_params.get('vehicle_number')
         if not vehicle_number:
             return Response({'exists': False}, status=status.HTTP_200_OK)
-        asset = CustomerAsset.objects.filter(vehicle_number=vehicle_number).first()
+        asset = CustomerAsset.objects.select_related(
+            'customer__garage_owner'
+        ).filter(vehicle_number=vehicle_number).first()
         if not asset:
             return Response({'exists': False}, status=status.HTTP_200_OK)
+        garage     = asset.customer.garage_owner
+        is_garage  = garage is not None
         return Response({
-            'exists': True,
+            'exists':   True,
+            'is_garage': is_garage,
+            'garage': {
+                'id':           garage.id,
+                'name':         garage.name,
+                'garage_name':  garage.garage_name,
+                'phone_number': garage.phone_number,
+                'email':        garage.email,
+                'location':     garage.location,
+                'gstin':        garage.gstin,
+            } if is_garage else None,
             'customer': {
-                'id': asset.customer.id,
+                'id':            asset.customer.id,
                 'customer_name': asset.customer.customer_name,
-                'phone_number': asset.customer.phone_number,
-                'email': asset.customer.email,
+                'phone_number':  asset.customer.phone_number,
+                'email':         asset.customer.email,
             },
             'vehicle': {
-                'id': asset.id,
+                'id':             asset.id,
                 'vehicle_number': asset.vehicle_number,
-                'vehicle_name': asset.vehicle_name,
-                'vehicle_company': asset.vehicle_company,
-                'vehicle_model': asset.vehicle_model,
+                'vehicle_name':   asset.vehicle_name,
+                'vehicle_company':asset.vehicle_company,
+                'vehicle_model':  asset.vehicle_model,
                 'vehicle_colour': asset.vehicle_colour,
-                'vehicle_type': asset.vehicle_type,
+                'vehicle_type':   asset.vehicle_type,
             },
         }, status=status.HTTP_200_OK)
 
@@ -284,3 +299,56 @@ class AllVehiclesListView(APIView):
             qs = qs.filter(vehicle_company__icontains=company)
         serializer = CustomerAssetSerializer(qs, many=True)
         return Response(serializer.data)
+
+
+# ─── Garage Owner ─────────────────────────────────────
+
+class GarageOwnerListCreateView(APIView):
+    def get(self, request):
+        q  = request.query_params.get('q', '')
+        qs = GarageOwner.objects.all().order_by('garage_name')
+        if q:
+            qs = qs.filter(
+                Q(garage_name__icontains=q) |
+                Q(name__icontains=q) |
+                Q(phone_number__icontains=q)
+            )
+        return Response(GarageOwnerSerializer(qs, many=True).data)
+
+    def post(self, request):
+        serializer = GarageOwnerSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GarageOwnerDetailView(APIView):
+    def get_object(self, pk):
+        try:
+            return GarageOwner.objects.get(pk=pk)
+        except GarageOwner.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        obj = self.get_object(pk)
+        if not obj:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(GarageOwnerSerializer(obj).data)
+
+    def put(self, request, pk):
+        obj = self.get_object(pk)
+        if not obj:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = GarageOwnerSerializer(obj, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk):
+        obj = self.get_object(pk)
+        if not obj:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

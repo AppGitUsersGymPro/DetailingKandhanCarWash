@@ -6,7 +6,7 @@ import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import { Field, Input, Select, Textarea } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { checkVehicle, checkCustomer, listVehicleCompanies, createVehicleCompany, listVehicleModels, createVehicleModel, listVehicleColours, createVehicleColour } from '../../api/customers';
+import { checkVehicle, checkCustomer, listVehicleCompanies, createVehicleCompany, listVehicleModels, createVehicleModel, listVehicleColours, createVehicleColour, listGarageOwners } from '../../api/customers';
 import { createFullJobCard, getCustomerTiers } from '../../api/jobcards';
 import { listServices } from '../../api/services';
 import { getSettings } from '../../api/settings';
@@ -215,6 +215,13 @@ export default function JobCardCreate() {
   const [vehicleMatch, setVehicleMatch] = useState(null);
   const [customerMatch, setCustomerMatch] = useState(null);
 
+  /* Owner type: 'customer' | 'garage' */
+  const [ownerType, setOwnerType]         = useState('customer');
+  const [garages, setGarages]             = useState([]);
+  const [loadingGarages, setLoadingGarages] = useState(false);
+  const [selectedGarage, setSelectedGarage] = useState(null);
+  const [garageSearch, setGarageSearch]   = useState('');
+
   /* Step 1: basic job card fields only (no phone, no complaints) */
   const [jobCard, setJobCard] = useState({
     job_card_date: new Date().toISOString().slice(0, 10),
@@ -271,6 +278,17 @@ export default function JobCardCreate() {
     getCustomerTiers().then(setTiers).catch(() => {});
   }, []); // eslint-disable-line
 
+  /* Load garages whenever garage mode is active */
+  useEffect(() => {
+    if (ownerType !== 'garage') return;
+    setLoadingGarages(true);
+    listGarageOwners(garageSearch ? { q: garageSearch } : undefined)
+      .then(d => setGarages(Array.isArray(d) ? d : []))
+      .catch(() => {})
+      .finally(() => setLoadingGarages(false));
+    // eslint-disable-next-line
+  }, [ownerType, garageSearch]);
+
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
   const updateCustomer = (k, v) => setCustomer((f) => ({ ...f, [k]: v }));
   const updateVehicle  = (k, v) => setVehicle((f) => ({ ...f, [k]: v }));
@@ -302,9 +320,9 @@ export default function JobCardCreate() {
 
   const validateStep2 = () => {
     const e = {};
-    if (!customer.phone_number.trim()) e.phone_number = 'Required';
-    if (!customerMatch) {
-      if (!customer.customer_name.trim()) e.customer_name = 'Required';
+    if (ownerType !== 'garage') {
+      if (!customer.phone_number.trim()) e.phone_number = 'Required';
+      if (!customerMatch && !customer.customer_name.trim()) e.customer_name = 'Required';
     }
     if (!vehicle.vehicle_type) e.vehicle_type = 'Required';
     if (vehicle.vehicle_type === 'four_wheeler' && !vehicleSubType) {
@@ -325,17 +343,25 @@ export default function JobCardCreate() {
 
   /* ── Navigation ─────────────────────────────────────────────────────────── */
 
-  /* Step 1 → check vehicle only; if matched go straight to Step 3 */
+  /* Step 1 → check vehicle; handle both customer and garage modes */
   const handleNextFromStep1 = async () => {
     if (!validateStep1()) return;
+    if (ownerType === 'garage' && !selectedGarage) {
+      toast.error('Please select a garage before continuing');
+      return;
+    }
     setChecking(true);
     try {
       const result = await checkVehicle(jobCard.vehicle_number.trim());
       if (result && result.exists) {
+        /* Vehicle found — auto-detect if it's a garage vehicle */
+        if (result.is_garage && result.garage) {
+          setOwnerType('garage');
+          setSelectedGarage(result.garage);
+        }
         setVehicleMatch({ customer: result.customer, vehicle: result.vehicle });
         setMatchedTier(resolveTier(result.customer?.id));
         setCustomerMatch(null);
-        /* Matched vehicle → directly to Step 3 (no customer/vehicle form needed) */
         setStep(3);
       } else {
         setVehicleMatch(null);
@@ -400,60 +426,54 @@ export default function JobCardCreate() {
         ? vehicleMatch.vehicle?.vehicle_type
         : vehicle.vehicle_type;
 
-      const payload = {
-        job_card: {
-          job_card_date:             jobCard.job_card_date,
-          vehicle_kilometers:        Number(jobCard.vehicle_kilometers),
-          vehicle_entry_time:        new Date(jobCard.vehicle_entry_time).toISOString(),
-          vehicle_expected_exit_time: new Date(jobCard.vehicle_expected_exit_time).toISOString(),
-          complaints:                complaints,
-          gst_percent:               Number(gstPercent || 18),
-          vehicle_sub_type:          currentVehicleType === 'four_wheeler' ? (vehicleSubType || null) : null,
-          ...(jobCard.employee ? { employee: Number(jobCard.employee) } : {}),
-        },
-        customer: vehicleMatch
-          ? {
-              is_new:        false,
-              id:            vehicleMatch.customer?.id ?? null,
-              customer_name: vehicleMatch.customer?.customer_name ?? '',
-              phone_number:  vehicleMatch.customer?.phone_number ?? '',
-              email:         vehicleMatch.customer?.email ?? '',
-            }
-          : customerMatch
-            ? {
-                is_new:        false,
-                id:            customerMatch.customer?.id ?? null,
-                customer_name: customerMatch.customer?.customer_name ?? '',
-                phone_number:  customerMatch.customer?.phone_number ?? '',
-                email:         customerMatch.customer?.email ?? '',
-              }
-            : {
-                is_new:        true,
-                id:            null,
-                customer_name: customer.customer_name.trim(),
-                phone_number:  customer.phone_number.trim(),
-                email:         customer.email.trim(),
-              },
-        vehicle: vehicleMatch
-          ? {
-              is_new:         false,
-              id:             vehicleMatch.vehicle?.id ?? null,
-              vehicle_number: vehicleMatch.vehicle?.vehicle_number ?? jobCard.vehicle_number.trim(),
-              vehicle_name:   vehicleMatch.vehicle?.vehicle_name ?? '',
-              vehicle_type:   vehicleMatch.vehicle?.vehicle_type ?? '',
-            }
-          : {
-              is_new:          true,
-              id:              null,
-              vehicle_number:  jobCard.vehicle_number.trim(),
-              vehicle_name:    vehicle.vehicle_name.trim(),
-              vehicle_company: vehicle.vehicle_company.trim(),
-              vehicle_model:   vehicle.vehicle_model.trim(),
-              vehicle_colour:  vehicle.vehicle_colour.trim(),
-              vehicle_type:    vehicle.vehicle_type,
-            },
-        services: selectedServiceIds,
+      const jobCardCore = {
+        job_card_date:             jobCard.job_card_date,
+        vehicle_kilometers:        Number(jobCard.vehicle_kilometers),
+        vehicle_entry_time:        new Date(jobCard.vehicle_entry_time).toISOString(),
+        vehicle_expected_exit_time: new Date(jobCard.vehicle_expected_exit_time).toISOString(),
+        complaints:                complaints,
+        gst_percent:               Number(gstPercent || 18),
+        vehicle_sub_type:          currentVehicleType === 'four_wheeler' ? (vehicleSubType || null) : null,
+        ...(jobCard.employee ? { employee: Number(jobCard.employee) } : {}),
       };
+
+      const vehiclePayload = vehicleMatch
+        ? {
+            is_new:         false,
+            id:             vehicleMatch.vehicle?.id ?? null,
+            vehicle_number: vehicleMatch.vehicle?.vehicle_number ?? jobCard.vehicle_number.trim(),
+            vehicle_name:   vehicleMatch.vehicle?.vehicle_name ?? '',
+            vehicle_type:   vehicleMatch.vehicle?.vehicle_type ?? '',
+          }
+        : {
+            is_new:          true,
+            id:              null,
+            vehicle_number:  jobCard.vehicle_number.trim(),
+            vehicle_name:    vehicle.vehicle_name.trim(),
+            vehicle_company: vehicle.vehicle_company.trim(),
+            vehicle_model:   vehicle.vehicle_model.trim(),
+            vehicle_colour:  vehicle.vehicle_colour.trim(),
+            vehicle_type:    vehicle.vehicle_type,
+          };
+
+      /* Build payload — garage mode omits customer, sends garage_id instead */
+      const payload = ownerType === 'garage'
+        ? {
+            job_card:   jobCardCore,
+            garage_id:  selectedGarage.id,
+            vehicle:    vehiclePayload,
+            services:   selectedServiceIds,
+          }
+        : {
+            job_card:  jobCardCore,
+            customer:  vehicleMatch
+              ? { is_new: false, id: vehicleMatch.customer?.id ?? null, customer_name: vehicleMatch.customer?.customer_name ?? '', phone_number: vehicleMatch.customer?.phone_number ?? '', email: vehicleMatch.customer?.email ?? '' }
+              : customerMatch
+                ? { is_new: false, id: customerMatch.customer?.id ?? null, customer_name: customerMatch.customer?.customer_name ?? '', phone_number: customerMatch.customer?.phone_number ?? '', email: customerMatch.customer?.email ?? '' }
+                : { is_new: true, id: null, customer_name: customer.customer_name.trim(), phone_number: customer.phone_number.trim(), email: customer.email.trim() },
+            vehicle:   vehiclePayload,
+            services:  selectedServiceIds,
+          };
       const created = await createFullJobCard(payload);
       downloadJobCardInvoice(created);
       toast.success('Job card created — invoice downloaded');
@@ -483,11 +503,31 @@ export default function JobCardCreate() {
 
       <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 max-w-3xl mt-4">
         {step === 1 && (
-          <Step1
-            form={jobCard}
-            update={updateJobCard}
-            errors={errors}
-          />
+          <div className="space-y-5">
+            {/* Owner type toggle */}
+            <OwnerTypeToggle
+              value={ownerType}
+              onChange={(t) => { setOwnerType(t); setSelectedGarage(null); setGarageSearch(''); }}
+            />
+
+            <Step1
+              form={jobCard}
+              update={updateJobCard}
+              errors={errors}
+            />
+
+            {/* Garage selection panel — only in garage mode */}
+            {ownerType === 'garage' && (
+              <GaragePanel
+                garages={garages}
+                loading={loadingGarages}
+                selected={selectedGarage}
+                onSelect={setSelectedGarage}
+                search={garageSearch}
+                onSearch={setGarageSearch}
+              />
+            )}
+          </div>
         )}
 
         {step === 2 && (
@@ -505,6 +545,8 @@ export default function JobCardCreate() {
             }}
             errors={errors}
             customerMatch={customerMatch}
+            ownerType={ownerType}
+            selectedGarage={selectedGarage}
           />
         )}
 
@@ -527,6 +569,8 @@ export default function JobCardCreate() {
             updateJobCard={updateJobCard}
             employees={employees}
             errors={errors}
+            ownerType={ownerType}
+            selectedGarage={selectedGarage}
           />
         )}
 
@@ -603,6 +647,83 @@ function Stepper({ step, skippedCustomer }) {
   );
 }
 
+/* ─── Owner Type Toggle ──────────────────────────────────────────────────── */
+function OwnerTypeToggle({ value, onChange }) {
+  return (
+    <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 w-fit">
+      {[
+        { v: 'customer', label: 'Customer' },
+        { v: 'garage',   label: 'Garage' },
+      ].map(({ v, label }) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+            value === v
+              ? 'bg-accent text-white shadow'
+              : 'text-gray-400 hover:text-gray-200'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Garage Panel ───────────────────────────────────────────────────────── */
+function GaragePanel({ garages, loading, selected, onSelect, search, onSearch }) {
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      <div className="px-4 py-3 bg-bg-elev border-b border-border">
+        <p className="text-xs font-semibold text-gray-300 mb-2">Select Garage <span className="text-red-400">*</span></p>
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search garage by name or phone…"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+            className="w-full bg-bg border border-border rounded-md pl-3 pr-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+          />
+        </div>
+      </div>
+      <div className="max-h-52 overflow-y-auto divide-y divide-border">
+        {loading ? (
+          <div className="py-6 text-center text-xs text-gray-500">Loading…</div>
+        ) : garages.length === 0 ? (
+          <div className="py-6 text-center text-xs text-gray-500">No garages found. Add one in the Customers → Garages tab.</div>
+        ) : (
+          garages.map((g) => {
+            const isSelected = selected?.id === g.id;
+            return (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => onSelect(g)}
+                className={`w-full text-left px-4 py-2.5 transition-colors flex items-center gap-3 ${
+                  isSelected ? 'bg-accent/10 border-l-2 border-accent' : 'hover:bg-bg-hover'
+                }`}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-100 truncate">{g.garage_name}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">{g.name} · {g.phone_number}</div>
+                </div>
+                {isSelected && <Check size={14} className="text-accent shrink-0" />}
+              </button>
+            );
+          })
+        )}
+      </div>
+      {selected && (
+        <div className="px-4 py-2.5 bg-accent/5 border-t border-accent/30 text-xs text-accent font-medium">
+          ✓ Selected: {selected.garage_name}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ─── Step 1: vehicle number, date, entry time only ─────────────────────── */
 function Step1({ form, update, errors }) {
   return (
@@ -635,7 +756,7 @@ function Step1({ form, update, errors }) {
 }
 
 /* ─── Step 2: customer details + vehicle details + complaints ───────────── */
-function Step2({ customer, vehicle, vehicleSubType, setVehicleSubType, complaints, setComplaints, updateCustomer, updateVehicle, errors, customerMatch }) {
+function Step2({ customer, vehicle, vehicleSubType, setVehicleSubType, complaints, setComplaints, updateCustomer, updateVehicle, errors, customerMatch, ownerType, selectedGarage }) {
   const handleCompanySelect = async (name, isNew) => {
     updateVehicle('vehicle_company', name);
     updateVehicle('vehicle_model', '');
@@ -653,47 +774,56 @@ function Step2({ customer, vehicle, vehicleSubType, setVehicleSubType, complaint
   return (
     <div className="space-y-6">
 
-      {/* ── Customer section ── */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-200 mb-3">Customer Details</h3>
-
-        {/* Phone number always shown — used to look up customer */}
-        <div className="mb-4">
-          <Field label="Phone Number" required error={errors.phone_number}>
-            <Input
-              placeholder="+91 9000000000"
-              value={customer.phone_number}
-              onChange={(e) => updateCustomer('phone_number', e.target.value)}
-            />
-          </Field>
+      {/* ── Customer / Garage section ── */}
+      {ownerType === 'garage' && selectedGarage ? (
+        <div className="bg-sky-900/20 border border-sky-700/50 rounded-lg p-3 text-sm">
+          <p className="text-xs font-semibold text-sky-400 mb-1.5">Garage</p>
+          <p className="text-gray-100 font-semibold">{selectedGarage.garage_name}</p>
+          <p className="text-gray-400 text-xs mt-0.5">{selectedGarage.name} · {selectedGarage.phone_number}{selectedGarage.email ? ` · ${selectedGarage.email}` : ''}</p>
+          {selectedGarage.location && <p className="text-gray-500 text-xs mt-0.5">{selectedGarage.location}</p>}
         </div>
+      ) : (
+        <div>
+          <h3 className="text-sm font-semibold text-gray-200 mb-3">Customer Details</h3>
 
-        {customerMatch ? (
-          <div className="bg-emerald-900/20 border border-emerald-800 rounded-md p-3 text-sm text-emerald-100">
-            Existing customer: <span className="font-semibold">{customerMatch.customer_name}</span>
-            {customerMatch.phone_number ? <> · {customerMatch.phone_number}</> : null}
-            {customerMatch.email ? <> · {customerMatch.email}</> : null}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Field label="Customer Name" required error={errors.customer_name}>
+          {/* Phone number always shown — used to look up customer */}
+          <div className="mb-4">
+            <Field label="Phone Number" required error={errors.phone_number}>
               <Input
-                placeholder="John Doe"
-                value={customer.customer_name}
-                onChange={(e) => updateCustomer('customer_name', e.target.value)}
-              />
-            </Field>
-            <Field label="Email">
-              <Input
-                type="email"
-                placeholder="john@example.com"
-                value={customer.email}
-                onChange={(e) => updateCustomer('email', e.target.value)}
+                placeholder="+91 9000000000"
+                value={customer.phone_number}
+                onChange={(e) => updateCustomer('phone_number', e.target.value)}
               />
             </Field>
           </div>
-        )}
-      </div>
+
+          {customerMatch ? (
+            <div className="bg-emerald-900/20 border border-emerald-800 rounded-md p-3 text-sm text-emerald-100">
+              Existing customer: <span className="font-semibold">{customerMatch.customer_name}</span>
+              {customerMatch.phone_number ? <> · {customerMatch.phone_number}</> : null}
+              {customerMatch.email ? <> · {customerMatch.email}</> : null}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Field label="Customer Name" required error={errors.customer_name}>
+                <Input
+                  placeholder="John Doe"
+                  value={customer.customer_name}
+                  onChange={(e) => updateCustomer('customer_name', e.target.value)}
+                />
+              </Field>
+              <Field label="Email">
+                <Input
+                  type="email"
+                  placeholder="john@example.com"
+                  value={customer.email}
+                  onChange={(e) => updateCustomer('email', e.target.value)}
+                />
+              </Field>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Vehicle section ── */}
       <div>
@@ -782,7 +912,7 @@ function Step2({ customer, vehicle, vehicleSubType, setVehicleSubType, complaint
 }
 
 /* ─── Step 3: Services ───────────────────────────────────────────────────── */
-function Step3({ services, loading, selectedIds, onToggle, effectivePricingType, basePrice, gstPercent, gstAmount, totalPrice, onGstChange, matchedCustomer, matchedVehicle, matchedTier, jobCardForm, updateJobCard, employees, errors }) {
+function Step3({ services, loading, selectedIds, onToggle, effectivePricingType, basePrice, gstPercent, gstAmount, totalPrice, onGstChange, matchedCustomer, matchedVehicle, matchedTier, jobCardForm, updateJobCard, employees, errors, ownerType, selectedGarage }) {
   if (loading) return <Loading label="Loading services..." />;
 
   return (
@@ -819,7 +949,13 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
         </Field>
       </div>
 
-      {matchedCustomer && matchedVehicle && (
+      {matchedVehicle && ownerType === 'garage' && selectedGarage && (
+        <div className="bg-sky-900/20 border border-sky-700/50 rounded-md p-3 text-sm">
+          Matched vehicle <span className="font-semibold text-sky-300">{matchedVehicle.vehicle_number}</span>
+          {' · '}Garage: <span className="font-semibold text-sky-300">{selectedGarage.garage_name}</span>
+        </div>
+      )}
+      {matchedVehicle && ownerType !== 'garage' && matchedCustomer && (
         <div className="bg-emerald-900/20 border border-emerald-800 rounded-md p-3 text-sm text-emerald-100">
           Matched existing vehicle <span className="font-semibold">{matchedVehicle.vehicle_number}</span> ·
           Customer: <span className="font-semibold">{matchedCustomer.customer_name}</span>

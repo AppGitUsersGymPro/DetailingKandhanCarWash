@@ -55,6 +55,11 @@ class JobCardSerializer(serializers.ModelSerializer):
     customer_name      = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True)
     phone_number       = serializers.CharField(source='customer_asset.customer.phone_number', read_only=True)
     employee_name      = serializers.CharField(source='employee.employee_name', read_only=True, default=None)
+    garage_owner_id    = serializers.IntegerField(source='garage_owner.id', read_only=True, allow_null=True)
+    garage_name        = serializers.SerializerMethodField()
+
+    def get_garage_name(self, obj):
+        return obj.garage_owner.garage_name if obj.garage_owner_id else None
 
     base_amount    = serializers.SerializerMethodField()
     gst_amount     = serializers.SerializerMethodField()
@@ -175,37 +180,56 @@ class JobCardCoreSerializer(serializers.Serializer):
 
 
 class FullJobCardCreateSerializer(serializers.Serializer):
-    job_card = JobCardCoreSerializer()
-    customer = CustomerInputSerializer()
-    vehicle  = VehicleInputSerializer()
-    services = serializers.ListField(
-        child=serializers.IntegerField(),
-        allow_empty=False,
-    )
+    job_card  = JobCardCoreSerializer()
+    customer  = CustomerInputSerializer(required=False)
+    vehicle   = VehicleInputSerializer()
+    services  = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    garage_id = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate(self, attrs):
+        if not attrs.get('garage_id') and not attrs.get('customer'):
+            raise serializers.ValidationError({'customer': 'Required when garage_id is not provided.'})
+        return attrs
 
     @transaction.atomic
     def create(self, validated_data):
-        c  = validated_data['customer']
+        from apps.customers.models import GarageOwner
         v  = validated_data['vehicle']
         jc = validated_data['job_card']
+        garage_id  = validated_data.get('garage_id')
+        job_card_garage = None
 
-        if c['is_new']:
-            phone    = normalize_phone(c['phone_number'])
-            email    = c.get('email', '')
-            lookup   = Q(phone_number=phone)
-            if email:
-                lookup |= Q(email__iexact=email)
-            existing = Customer.objects.filter(lookup).first()
-            if existing:
-                customer = existing
-            else:
-                customer = Customer.objects.create(
-                    customer_name=c['customer_name'],
-                    phone_number=phone,
-                    email=email,
-                )
+        if garage_id:
+            garage = GarageOwner.objects.get(pk=garage_id)
+            job_card_garage = garage
+            # Find or create a proxy customer for this garage
+            customer, _ = Customer.objects.get_or_create(
+                garage_owner=garage,
+                defaults={
+                    'customer_name': garage.garage_name,
+                    'phone_number':  garage.phone_number,
+                    'email':         garage.email or None,
+                },
+            )
         else:
-            customer = Customer.objects.get(pk=c['id'])
+            c = validated_data['customer']
+            if c['is_new']:
+                phone  = normalize_phone(c['phone_number'])
+                email  = c.get('email', '') or None
+                lookup = Q(phone_number=phone)
+                if email:
+                    lookup |= Q(email__iexact=email)
+                existing = Customer.objects.filter(lookup).first()
+                if existing:
+                    customer = existing
+                else:
+                    customer = Customer.objects.create(
+                        customer_name=c['customer_name'],
+                        phone_number=phone,
+                        email=email,
+                    )
+            else:
+                customer = Customer.objects.get(pk=c['id'])
 
         if v['is_new']:
             existing_asset = CustomerAsset.objects.filter(
@@ -260,6 +284,7 @@ class FullJobCardCreateSerializer(serializers.Serializer):
             customer_asset=asset,
             employee_id=employee_id,
             vehicle_sub_type=vehicle_sub_type,
+            garage_owner=job_card_garage,
             **jc,
         )
 

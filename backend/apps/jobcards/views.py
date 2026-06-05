@@ -37,12 +37,13 @@ class FullJobCardCreateView(APIView):
 class JobCardListCreateView(APIView):
     def get(self, request):
         qs = JobCard.objects.all()
-        job_status = request.query_params.get('status')
-        date       = request.query_params.get('date')
-        employee   = request.query_params.get('employee')
-        company    = request.query_params.get('company')
-        model      = request.query_params.get('model')
-        vehicle_id = request.query_params.get('vehicle_id')
+        job_status  = request.query_params.get('status')
+        date        = request.query_params.get('date')
+        employee    = request.query_params.get('employee')
+        company     = request.query_params.get('company')
+        model       = request.query_params.get('model')
+        vehicle_id  = request.query_params.get('vehicle_id')
+        owner_type  = request.query_params.get('owner_type')  # 'customer' | 'garage'
         if job_status:
             qs = qs.filter(job_card_status=job_status)
         if date:
@@ -55,6 +56,10 @@ class JobCardListCreateView(APIView):
             qs = qs.filter(customer_asset__vehicle_model__icontains=model)
         if vehicle_id:
             qs = qs.filter(customer_asset_id=vehicle_id)
+        if owner_type == 'customer':
+            qs = qs.filter(garage_owner__isnull=True)
+        elif owner_type == 'garage':
+            qs = qs.filter(garage_owner__isnull=False)
         serializer = JobCardSerializer(qs, many=True)
         return Response(serializer.data)
 

@@ -47,11 +47,28 @@ class VehicleColour(models.Model):
         return self.name
 
 
-# Create your models here.
+class GarageOwner(models.Model):
+    """A garage / workshop that sends vehicles for servicing."""
+    name         = models.CharField(max_length=255)              # contact person
+    garage_name  = models.CharField(max_length=255)              # business name
+    location     = models.TextField(blank=True, default='')
+    gstin        = models.CharField(max_length=50, blank=True, default='')
+    phone_number = models.CharField(max_length=20, unique=True)
+    email        = models.EmailField(blank=True, null=True)
+    notes        = models.TextField(blank=True, default='')
+
+    def __str__(self):
+        return self.garage_name
+
+
 class Customer(models.Model):
     customer_name = models.CharField(max_length=255)
-    phone_number = models.CharField(max_length=20, unique=True)
-    email = models.EmailField(unique = True)
+    phone_number  = models.CharField(max_length=20, unique=True)
+    email         = models.EmailField(unique=True, blank=True, null=True)
+    garage_owner  = models.ForeignKey(
+        GarageOwner, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='proxy_customers',
+    )
 
     def save(self, *args, **kwargs):
         self.phone_number = normalize_phone(self.phone_number)
