@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from datetime import timedelta, date as _date
 from decimal import Decimal
@@ -7,6 +8,8 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
+
+logger = logging.getLogger(__name__)
 from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage, JobCardSalesProduct, SalesOrder
 from apps.customers.models import Customer, CustomerAsset
 from .serializers import (
@@ -37,6 +40,27 @@ class FullJobCardCreateView(APIView):
         serializer = FullJobCardCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         job_card = serializer.save()
+
+        try:
+            from apps.notifications.utils import queue_notification, _get_business_name
+            if job_card.garage_owner:
+                recipient_name = job_card.garage_owner.name
+                phone          = job_card.garage_owner.phone_number
+            else:
+                customer       = job_card.customer_asset.customer
+                recipient_name = customer.customer_name
+                phone          = customer.phone_number
+            queue_notification(
+                recipient_name=recipient_name,
+                phone=phone,
+                trigger_type='job_checkin',
+                vehicle_number=job_card.customer_asset.vehicle_number,
+                business_name=_get_business_name(),
+                job_card_number=job_card.job_card_number,
+            )
+        except Exception:
+            logger.exception("job_checkin notification failed for job card %s", job_card.job_card_number)
+
         return Response(JobCardSerializer(job_card).data, status=status.HTTP_201_CREATED)
 
 
@@ -124,6 +148,28 @@ class JobCardDetailView(APIView):
                     vehicle.last_service_date = today
                     vehicle.next_service_date = today + timedelta(days=183)  # ~6 months
                     vehicle.save(update_fields=['last_service_date', 'next_service_date'])
+
+                try:
+                    from apps.notifications.utils import queue_notification, _get_business_name
+                    total = sum(s.price_at_time for s in updated_jobcard.job_card_services.all())
+                    if updated_jobcard.garage_owner:
+                        recipient_name = updated_jobcard.garage_owner.name
+                        phone          = updated_jobcard.garage_owner.phone_number
+                    else:
+                        customer       = updated_jobcard.customer_asset.customer
+                        recipient_name = customer.customer_name
+                        phone          = customer.phone_number
+                    queue_notification(
+                        recipient_name=recipient_name,
+                        phone=phone,
+                        trigger_type='job_completed',
+                        vehicle_number=updated_jobcard.customer_asset.vehicle_number,
+                        business_name=_get_business_name(),
+                        job_card_number=updated_jobcard.job_card_number,
+                        total_amount=f"{total:,.2f}",
+                    )
+                except Exception:
+                    logger.exception("job_completed notification failed for job card %s", updated_jobcard.job_card_number)
 
             return Response(JobCardSerializer(updated_jobcard).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -315,7 +361,34 @@ class JobCardPaymentListCreateView(APIView):
         data['job_card'] = jobcard.id
         serializer = JobCardPaymentSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            payment = serializer.save()
+
+            try:
+                from apps.notifications.utils import queue_notification, _get_business_name
+                jc    = payment.job_card
+                total = sum(s.price_at_time for s in jc.job_card_services.all())
+                paid  = sum(p.amount for p in jc.payments.all())
+                balance = max(total - paid, 0)
+                if jc.garage_owner:
+                    recipient_name = jc.garage_owner.name
+                    phone          = jc.garage_owner.phone_number
+                else:
+                    customer       = jc.customer_asset.customer
+                    recipient_name = customer.customer_name
+                    phone          = customer.phone_number
+                queue_notification(
+                    recipient_name=recipient_name,
+                    phone=phone,
+                    trigger_type='payment_received',
+                    amount=f"{payment.amount:,.2f}",
+                    job_card_number=jc.job_card_number,
+                    vehicle_number=jc.customer_asset.vehicle_number,
+                    balance=f"{balance:,.2f}",
+                    business_name=_get_business_name(),
+                )
+            except Exception:
+                logger.exception("payment_received notification failed for job card %s", jobcard.job_card_number)
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1149,8 +1222,25 @@ class GaragePaymentView(APIView):
             })
             remaining -= pay_this
 
+        total_applied = amount - remaining
+        if total_applied > 0:
+            try:
+                from apps.customers.models import GarageOwner
+                from apps.notifications.utils import queue_notification, _get_business_name
+                garage = GarageOwner.objects.get(pk=garage_id)
+                queue_notification(
+                    recipient_name=garage.name,
+                    phone=garage.phone_number,
+                    trigger_type='garage_payment',
+                    garage_name=garage.garage_name,
+                    amount=f"{total_applied:,.2f}",
+                    business_name=_get_business_name(),
+                )
+            except Exception:
+                logger.exception("garage_payment notification failed for garage %s", garage_id)
+
         return Response({
             'payments_created':  payments_created,
-            'total_applied':     str((amount - remaining).quantize(Decimal('0.01'))),
+            'total_applied':     str(total_applied.quantize(Decimal('0.01'))),
             'remaining':         str(remaining.quantize(Decimal('0.01'))),
         }, status=status.HTTP_201_CREATED)

@@ -1,8 +1,11 @@
+import logging
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Q
 from .models import Customer, CustomerAsset, VehicleCompany, VehicleModel, VehicleColour, GarageOwner, normalize_phone
+
+logger = logging.getLogger(__name__)
 from .serializers import (
     CustomerSerializer, CustomerAssetSerializer,
     VehicleCompanySerializer, VehicleModelSerializer, VehicleColourSerializer,
@@ -25,7 +28,19 @@ class CustomerListView(APIView):
     def post(self, request):
         serializer = CustomerSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            customer = serializer.save()
+
+            try:
+                from apps.notifications.utils import queue_notification, _get_business_name
+                queue_notification(
+                    recipient_name=customer.customer_name,
+                    phone=customer.phone_number,
+                    trigger_type='customer_welcome',
+                    business_name=_get_business_name(),
+                )
+            except Exception:
+                logger.exception("customer_welcome notification failed for customer %s", customer.id)
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
