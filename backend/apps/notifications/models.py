@@ -5,12 +5,15 @@ class Notification(models.Model):
     CHANNEL_CHOICES = [('whatsapp', 'WhatsApp')]
     STATUS_CHOICES  = [('pending', 'Pending'), ('sent', 'Sent'), ('failed', 'Failed')]
     TRIGGER_CHOICES = [
-        ('job_checkin',      'Job Check-in'),
-        ('job_completed',    'Job Completed'),
-        ('payment_received', 'Payment Received'),
-        ('customer_welcome', 'Customer Welcome'),
-        ('garage_payment',   'Garage Payment'),
-        ('service_reminder', 'Service Reminder'),
+        ('job_checkin',            'Job Check-in'),
+        ('job_completed',          'Job Completed'),
+        ('payment_received',       'Payment Received'),
+        ('customer_welcome',       'Customer Welcome'),
+        ('garage_payment',         'Garage Payment'),
+        ('service_reminder',       'Service Reminder'),
+        ('garage_all_completed',   'Garage All Completed'),
+        ('low_stock_alert',        'Low Stock Alert'),
+        ('salary_processed',       'Salary Processed'),
     ]
 
     recipient_name  = models.CharField(max_length=255)

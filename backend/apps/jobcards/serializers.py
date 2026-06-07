@@ -1,7 +1,10 @@
+import logging
 from decimal import Decimal
 from rest_framework import serializers
 from django.db import transaction
 from django.db.models import Q
+
+logger = logging.getLogger(__name__)
 
 from apps.customers.models import Customer, CustomerAsset, normalize_phone
 from apps.services.models import Service, ServiceProduct, ServiceVehiclePrice
@@ -427,6 +430,23 @@ class JobCardProductUsageCreateSerializer(serializers.Serializer):
         )
         inv.quantity_available = inv.quantity_available - qty
         inv.save(update_fields=['quantity_available'])
+        if inv.is_low_stock:
+            try:
+                from apps.notifications.utils import queue_notification, _get_business_name, _get_admin_phone
+                admin_phone = _get_admin_phone()
+                if admin_phone:
+                    queue_notification(
+                        recipient_name='Admin',
+                        phone=admin_phone,
+                        trigger_type='low_stock_alert',
+                        product_name=inv.product.product_name,
+                        brand=inv.brand or 'N/A',
+                        quantity=str(inv.quantity_available),
+                        unit=inv.product.product_unit,
+                        business_name=_get_business_name(),
+                    )
+            except Exception:
+                logger.exception("low_stock_alert failed for inventory %s", inv.id)
         return usage
 
     def to_representation(self, instance):
@@ -494,6 +514,23 @@ class JobCardSalesProductCreateSerializer(serializers.Serializer):
         )
         inv.quantity_available -= qty
         inv.save(update_fields=['quantity_available'])
+        if inv.is_low_stock:
+            try:
+                from apps.notifications.utils import queue_notification, _get_business_name, _get_admin_phone
+                admin_phone = _get_admin_phone()
+                if admin_phone:
+                    queue_notification(
+                        recipient_name='Admin',
+                        phone=admin_phone,
+                        trigger_type='low_stock_alert',
+                        product_name=inv.product.product_name,
+                        brand=inv.brand or 'N/A',
+                        quantity=str(inv.quantity_available),
+                        unit=inv.product.product_unit,
+                        business_name=_get_business_name(),
+                    )
+            except Exception:
+                logger.exception("low_stock_alert failed for inventory %s", inv.id)
         return sp
 
     def to_representation(self, instance):
@@ -598,6 +635,24 @@ class SalesOrderCreateSerializer(serializers.Serializer):
             )
             it['inventory'].quantity_available -= it['quantity']
             it['inventory'].save(update_fields=['quantity_available'])
+            if it['inventory'].is_low_stock:
+                try:
+                    from apps.notifications.utils import queue_notification, _get_business_name, _get_admin_phone
+                    admin_phone = _get_admin_phone()
+                    if admin_phone:
+                        inv = it['inventory']
+                        queue_notification(
+                            recipient_name='Admin',
+                            phone=admin_phone,
+                            trigger_type='low_stock_alert',
+                            product_name=inv.product.product_name,
+                            brand=inv.brand or 'N/A',
+                            quantity=str(inv.quantity_available),
+                            unit=inv.product.product_unit,
+                            business_name=_get_business_name(),
+                        )
+                except Exception:
+                    logger.exception("low_stock_alert failed for inventory %s", it['inventory'].id)
 
         return order
 

@@ -245,7 +245,10 @@ const NOTIFY_TOGGLES = [
   { key: 'NOTIFY_PAYMENT',          label: 'Payment Received',       desc: 'Sent to customer after each payment is recorded' },
   { key: 'NOTIFY_CUSTOMER_WELCOME', label: 'New Customer Welcome',   desc: 'Sent when a new customer is registered' },
   { key: 'NOTIFY_GARAGE_PAYMENT',   label: 'Garage Payment Applied', desc: 'Sent to the garage owner when a bulk payment is applied' },
-  { key: 'NOTIFY_SERVICE_REMINDER', label: 'Service Due Reminder',   desc: 'Sent when a vehicle is due for its next service' },
+  { key: 'NOTIFY_SERVICE_REMINDER',      label: 'Service Due Reminder',       desc: 'Sent when a vehicle is due for its next service (scheduled job)' },
+  { key: 'NOTIFY_GARAGE_ALL_COMPLETED',  label: 'Garage All Jobs Done',       desc: 'Sent to garage owner when all their job cards are completed' },
+  { key: 'NOTIFY_LOW_STOCK',             label: 'Low Stock Alert',            desc: 'Sent to admin when inventory drops below minimum threshold' },
+  { key: 'NOTIFY_SALARY',               label: 'Salary Processed',           desc: 'Sent to employee when salary is processed' },
 ];
 
 function NotificationTogglesCard({ values, onChange }) {

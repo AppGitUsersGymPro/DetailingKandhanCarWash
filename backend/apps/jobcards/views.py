@@ -171,6 +171,32 @@ class JobCardDetailView(APIView):
                 except Exception:
                     logger.exception("job_completed notification failed for job card %s", updated_jobcard.job_card_number)
 
+                # If this is a garage job card, check whether ALL garage cards are now done
+                if updated_jobcard.garage_owner:
+                    try:
+                        from apps.notifications.utils import queue_notification, _get_business_name
+                        pending_count = JobCard.objects.filter(
+                            garage_owner=updated_jobcard.garage_owner
+                        ).exclude(job_card_status='COMPLETED').count()
+                        if pending_count == 0:
+                            total_count = JobCard.objects.filter(
+                                garage_owner=updated_jobcard.garage_owner
+                            ).count()
+                            go = updated_jobcard.garage_owner
+                            queue_notification(
+                                recipient_name=go.name,
+                                phone=go.phone_number,
+                                trigger_type='garage_all_completed',
+                                garage_name=go.garage_name,
+                                count=total_count,
+                                business_name=_get_business_name(),
+                            )
+                    except Exception:
+                        logger.exception(
+                            "garage_all_completed notification failed for garage %s",
+                            updated_jobcard.garage_owner_id,
+                        )
+
             return Response(JobCardSerializer(updated_jobcard).data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

@@ -17,12 +17,15 @@ const STATUS_FILTERS = [
 ];
 
 const TRIGGER_LABELS = {
-  job_checkin:      'Check-in',
-  job_completed:    'Completed',
-  payment_received: 'Payment',
-  customer_welcome: 'Welcome',
-  garage_payment:   'Garage Pay',
-  service_reminder: 'Service Due',
+  job_checkin:            'Check-in',
+  job_completed:          'Completed',
+  payment_received:       'Payment',
+  customer_welcome:       'Welcome',
+  garage_payment:         'Garage Pay',
+  service_reminder:       'Service Due',
+  garage_all_completed:   'All Done',
+  low_stock_alert:        'Low Stock',
+  salary_processed:       'Salary',
 };
 
 const STATUS_STYLE = {
@@ -32,12 +35,15 @@ const STATUS_STYLE = {
 };
 
 const TRIGGER_STYLE = {
-  job_checkin:      'bg-blue-900/30 text-blue-300 border-blue-700',
-  job_completed:    'bg-emerald-900/30 text-emerald-300 border-emerald-700',
-  payment_received: 'bg-indigo-900/30 text-indigo-300 border-indigo-700',
-  customer_welcome: 'bg-violet-900/30 text-violet-300 border-violet-700',
-  garage_payment:   'bg-amber-900/30 text-amber-300 border-amber-700',
-  service_reminder: 'bg-teal-900/30 text-teal-300 border-teal-700',
+  job_checkin:            'bg-blue-900/30 text-blue-300 border-blue-700',
+  job_completed:          'bg-emerald-900/30 text-emerald-300 border-emerald-700',
+  payment_received:       'bg-indigo-900/30 text-indigo-300 border-indigo-700',
+  customer_welcome:       'bg-violet-900/30 text-violet-300 border-violet-700',
+  garage_payment:         'bg-amber-900/30 text-amber-300 border-amber-700',
+  service_reminder:       'bg-teal-900/30 text-teal-300 border-teal-700',
+  garage_all_completed:   'bg-cyan-900/30 text-cyan-300 border-cyan-700',
+  low_stock_alert:        'bg-red-900/30 text-red-300 border-red-700',
+  salary_processed:       'bg-pink-900/30 text-pink-300 border-pink-700',
 };
 
 // ── Stat box ──────────────────────────────────────────────────────────────────
