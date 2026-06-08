@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 
 class Setting(models.Model):
@@ -39,3 +40,31 @@ class Setting(models.Model):
 
     def __str__(self):
         return f'{self.field_name} = {self.value}'
+
+
+class UserProfile(models.Model):
+    ROLE_ADMIN = 'admin'
+    ROLE_STAFF = 'staff'
+    ROLE_CHOICES = [
+        ('admin', 'Admin'),
+        ('staff', 'Staff'),
+    ]
+
+    user     = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role     = models.CharField(max_length=20, choices=ROLE_CHOICES, default='admin')
+    # Nullable: None = "common" login (shared), set = mapped to a specific employee (1 login per employee)
+    employee = models.OneToOneField(
+        'employees.Employee',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='user_profile',
+    )
+
+    @property
+    def display_name(self):
+        if self.employee_id:
+            return self.employee.employee_name
+        return self.user.username
+
+    def __str__(self):
+        return f'{self.user.username} ({self.role})'

@@ -5,22 +5,27 @@ import {
 } from 'lucide-react';
 import { tokens, logout } from '../api/auth';
 
-const links = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/jobcards', icon: ClipboardList, label: 'Job Cards' },
-  { to: '/customers', icon: Users, label: 'Customers / Vehicles' },
-  { to: '/services', icon: Wrench, label: 'Services' },
-  { to: '/sales', icon: ShoppingCart, label: 'Sales' },
-  { to: '/employees', icon: UserCog, label: 'Employees' },
-  { to: '/vendors', icon: Truck, label: 'Vendors' },
-  { to: '/finance', icon: TrendingUp, label: 'Finance' },
-  { to: '/kiosk', icon: ScanLine, label: 'Kiosk' },
-  { to: '/settings', icon: Settings2, label: 'Settings' },
+const ALL_LINKS = [
+  { to: '/',          icon: LayoutDashboard, label: 'Dashboard',          end: true,  staffAllowed: true  },
+  { to: '/jobcards',  icon: ClipboardList,   label: 'Job Cards',          end: false, staffAllowed: true  },
+  { to: '/customers', icon: Users,           label: 'Customers / Vehicles', end: false, staffAllowed: true },
+  { to: '/services',  icon: Wrench,          label: 'Services',           end: false, staffAllowed: false },
+  { to: '/sales',     icon: ShoppingCart,    label: 'Sales',              end: false, staffAllowed: true  },
+  { to: '/employees', icon: UserCog,         label: 'Employees',          end: false, staffAllowed: false },
+  { to: '/vendors',   icon: Truck,           label: 'Vendors',            end: false, staffAllowed: false },
+  { to: '/finance',   icon: TrendingUp,      label: 'Finance',            end: false, staffAllowed: false },
+  { to: '/kiosk',     icon: ScanLine,        label: 'Kiosk',              end: false, staffAllowed: true  },
+  { to: '/settings',  icon: Settings2,       label: 'Settings',           end: false, staffAllowed: false },
 ];
 
 export default function Sidebar({ onClose }) {
-  const navigate = useNavigate();
-  const username = tokens.getUser();
+  const navigate     = useNavigate();
+  const username     = tokens.getUser();
+  const role         = tokens.getRole();
+  const isStaff      = role === 'staff';
+  const employeeName = tokens.getEmployeeName();
+
+  const links = isStaff ? ALL_LINKS.filter(l => l.staffAllowed) : ALL_LINKS;
 
   const onLogout = () => {
     logout();
@@ -40,7 +45,6 @@ export default function Sidebar({ onClose }) {
             <div className="text-[10px] text-gray-500 uppercase tracking-wider">Workshop</div>
           </div>
         </div>
-        {/* Close button — mobile only */}
         {onClose && (
           <button
             onClick={onClose}
@@ -74,14 +78,25 @@ export default function Sidebar({ onClose }) {
         ))}
       </nav>
 
-      {/* User + logout */}
+      {/* User + role badge + logout */}
       <div className="px-3 py-3 border-t border-border space-y-2">
         {username && (
           <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-400">
             <div className="w-7 h-7 rounded-full bg-bg-elev flex items-center justify-center shrink-0">
               <User size={13} />
             </div>
-            <span className="truncate">{username}</span>
+            <div className="min-w-0">
+              {/* Show employee name as primary if mapped, otherwise show username */}
+              <div className="truncate font-medium text-gray-200">
+                {employeeName || username}
+              </div>
+              {employeeName && (
+                <div className="truncate text-[10px] text-gray-500">{username}</div>
+              )}
+              {isStaff && (
+                <div className="text-[10px] text-amber-400 font-medium uppercase tracking-wide">Staff</div>
+              )}
+            </div>
           </div>
         )}
         <button

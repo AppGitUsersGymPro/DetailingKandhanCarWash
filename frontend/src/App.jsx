@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import RequireAuth from './components/RequireAuth';
 import { ToastProvider } from './components/Toast';
+import { tokens } from './api/auth';
 
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -24,6 +25,12 @@ import Finance from './pages/Finance';
 import Kiosk from './pages/Kiosk';
 import Settings from './pages/Settings';
 
+function AdminOnly({ children }) {
+  const role = tokens.getRole();
+  if (role === 'staff') return <Navigate to="/" replace />;
+  return children;
+}
+
 export default function App() {
   return (
     <ToastProvider>
@@ -32,6 +39,8 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route element={<RequireAuth><Layout /></RequireAuth>}>
             <Route index element={<Dashboard />} />
+
+            {/* Job Cards — staff allowed */}
             <Route path="jobcards" element={<JobCardsList />} />
             <Route path="jobcards/new" element={<JobCardCreate />} />
             <Route path="jobcards/by-vehicle/:vehicleType" element={<JobCardsByVehicle />} />
@@ -39,17 +48,26 @@ export default function App() {
             <Route path="jobcards/garage/:garageId" element={<GarageDetail />} />
             <Route path="jobcards/:id/edit" element={<JobCardEdit />} />
             <Route path="jobcards/:id" element={<JobCardDetail />} />
+
+            {/* Customers — staff allowed */}
             <Route path="customers" element={<Customers />} />
             <Route path="customers/vehicles/:vehicleId" element={<VehicleDetail />} />
             <Route path="customers/:id" element={<CustomerDetail />} />
-            <Route path="services" element={<Services />} />
-            <Route path="services/:id" element={<ServiceDetail />} />
+
+            {/* Sales — staff allowed */}
             <Route path="sales" element={<Sales />} />
-            <Route path="employees/*" element={<Employees />} />
-            <Route path="vendors/*" element={<Vendors />} />
-            <Route path="finance" element={<Finance />} />
+
+            {/* Kiosk — staff allowed */}
             <Route path="kiosk" element={<Kiosk />} />
-            <Route path="settings" element={<Settings />} />
+
+            {/* Admin-only routes */}
+            <Route path="services" element={<AdminOnly><Services /></AdminOnly>} />
+            <Route path="services/:id" element={<AdminOnly><ServiceDetail /></AdminOnly>} />
+            <Route path="employees/*" element={<AdminOnly><Employees /></AdminOnly>} />
+            <Route path="vendors/*" element={<AdminOnly><Vendors /></AdminOnly>} />
+            <Route path="finance" element={<AdminOnly><Finance /></AdminOnly>} />
+            <Route path="settings" element={<AdminOnly><Settings /></AdminOnly>} />
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

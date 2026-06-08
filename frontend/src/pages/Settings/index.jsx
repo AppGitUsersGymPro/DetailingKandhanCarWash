@@ -1,14 +1,20 @@
 import { useEffect, useState } from 'react';
 import {
   Settings2, Building2, TrendingUp, Cog, ShieldCheck,
-  Save, Eye, EyeOff, ChevronDown,
+  Save, Eye, EyeOff, ChevronDown, UserPlus, Trash2, KeyRound, Users,
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Loading from '../../components/Loading';
 import Button from '../../components/Button';
 import { Field, Input, Select, Textarea } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { getSettings, updateSettings, changePassword } from '../../api/settings';
+import Modal from '../../components/Modal';
+import ConfirmDialog from '../../components/ConfirmDialog';
+import {
+  getSettings, updateSettings, changePassword,
+  listStaffUsers, createStaffUser, deleteStaffUser, resetStaffPassword,
+  listAvailableEmployees,
+} from '../../api/settings';
 import { extractError } from '../../api/axios';
 
 // ── Section meta ────────────────────────────────────────────────────────────
@@ -237,6 +243,357 @@ function ChangePasswordCard() {
   );
 }
 
+// ── Staff Accounts Card ───────────────────────────────────────────────────────
+
+const RESERVED_USERNAMES = ['admin'];
+
+function StaffAccountsCard() {
+  const toast = useToast();
+  const [staff,        setStaff]        = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [modal,        setModal]        = useState(false);
+  const [availEmps,    setAvailEmps]    = useState([]);
+  const [empsLoading,  setEmpsLoading]  = useState(false);
+  const [confirmDel,   setConfirmDel]   = useState(null);
+  const [resetModal,   setResetModal]   = useState(null);
+  const [delLoading,   setDelLoading]   = useState(false);
+  const [createdCred,  setCreatedCred]  = useState(null); // shown after successful create
+  const [form,         setForm]         = useState({ username: '', password: '', confirm: '', employee_id: '' });
+  const [formErrors,   setFormErrors]   = useState({});
+  const [submitting,   setSubmitting]   = useState(false);
+  const [showPwd,      setShowPwd]      = useState(false);
+  const [resetPwd,     setResetPwd]     = useState('');
+  const [resetConf,    setResetConf]    = useState('');
+  const [resetErr,     setResetErr]     = useState('');
+  const [resetSaving,  setResetSaving]  = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try { setStaff(await listStaffUsers()); }
+    catch (err) { toast.error(extractError(err)); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []); // eslint-disable-line
+
+  const openCreate = async () => {
+    setForm({ username: '', password: '', confirm: '', employee_id: '' });
+    setFormErrors({});
+    setShowPwd(false);
+    setModal(true);
+    setEmpsLoading(true);
+    try { setAvailEmps(await listAvailableEmployees()); }
+    catch { setAvailEmps([]); }
+    finally { setEmpsLoading(false); }
+  };
+
+  const submitCreate = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    const uname = form.username.trim();
+    if (!uname) {
+      errs.username = 'Required';
+    } else if (RESERVED_USERNAMES.includes(uname.toLowerCase())) {
+      errs.username = '"admin" is reserved and cannot be used for staff accounts';
+    }
+    if (!form.password)                errs.password = 'Required';
+    else if (form.password.length < 6) errs.password = 'Min 6 characters';
+    if (form.password !== form.confirm) errs.confirm = 'Passwords do not match';
+    setFormErrors(errs);
+    if (Object.keys(errs).length) return;
+
+    setSubmitting(true);
+    try {
+      const payload = {
+        username:    uname,
+        password:    form.password,
+        employee_id: form.employee_id ? Number(form.employee_id) : null,
+      };
+      const created = await createStaffUser(payload);
+      setModal(false);
+      load();
+      // Show credential summary (password shown once)
+      setCreatedCred({
+        employee_name: created.employee_name,
+        username:      created.username,
+        password:      form.password,
+      });
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!confirmDel) return;
+    setDelLoading(true);
+    try {
+      await deleteStaffUser(confirmDel.id);
+      toast.success('Staff account deleted');
+      setConfirmDel(null);
+      load();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setDelLoading(false);
+    }
+  };
+
+  const submitReset = async (e) => {
+    e.preventDefault();
+    setResetErr('');
+    if (!resetPwd)              { setResetErr('Required'); return; }
+    if (resetPwd.length < 6)   { setResetErr('Min 6 characters'); return; }
+    if (resetPwd !== resetConf) { setResetErr('Passwords do not match'); return; }
+    setResetSaving(true);
+    try {
+      await resetStaffPassword(resetModal.id, { password: resetPwd });
+      toast.success(`Password reset for ${resetModal.employee_name || resetModal.username}`);
+      setResetModal(null);
+      setResetPwd(''); setResetConf('');
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setResetSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <Users size={15} className="text-violet-400" />
+            <h2 className="text-sm font-semibold text-violet-400">Staff Accounts</h2>
+          </div>
+          <Button size="sm" onClick={openCreate}>
+            <UserPlus size={13} /> Add Staff
+          </Button>
+        </div>
+
+        {/* Post-create credential banner */}
+        {createdCred && (
+          <div className="mx-5 mt-4 mb-1 rounded-lg border border-emerald-600/40 bg-emerald-900/20 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-emerald-300 uppercase tracking-wide">
+                  Account created — share these credentials once
+                </p>
+                <div className="grid grid-cols-3 gap-3 text-sm">
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Employee</div>
+                    <div className="font-medium text-gray-100">{createdCred.employee_name || 'Common (all staff)'}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Username</div>
+                    <code className="font-mono font-medium text-amber-300">{createdCred.username}</code>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Password</div>
+                    <code className="font-mono font-medium text-amber-300">{createdCred.password}</code>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setCreatedCred(null)}
+                className="text-gray-500 hover:text-gray-300 text-lg leading-none mt-0.5"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="px-5 py-6 text-sm text-gray-500">Loading…</div>
+        ) : staff.length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-gray-500">
+            No staff accounts yet. Add one to give limited-access logins.
+          </div>
+        ) : (
+          <table className="w-full text-sm mt-2">
+            <thead className="border-b border-white/5">
+              <tr>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">Employee</th>
+                <th className="text-left px-5 py-2.5 text-xs font-medium text-gray-500">Username</th>
+                <th className="px-5 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {staff.map(u => (
+                <tr key={u.id} className="group">
+                  <td className="px-5 py-3">
+                    {u.employee_name ? (
+                      <div>
+                        <div className="font-medium text-gray-100">{u.employee_name}</div>
+                        <div className="text-[11px] text-gray-500">{u.employee_code}</div>
+                      </div>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded-full border bg-sky-900/30 text-sky-300 border-sky-700/40 font-medium">
+                        Common
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    <code className="text-xs font-mono text-amber-300 bg-amber-900/20 px-1.5 py-0.5 rounded">
+                      {u.username}
+                    </code>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        title="Reset password"
+                        onClick={() => { setResetModal(u); setResetPwd(''); setResetConf(''); setResetErr(''); }}
+                        className="p-1.5 text-gray-400 hover:text-amber-400 transition-colors"
+                      >
+                        <KeyRound size={14} />
+                      </button>
+                      <button
+                        title="Delete"
+                        onClick={() => setConfirmDel(u)}
+                        className="p-1.5 text-gray-400 hover:text-red-400 transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        <div className="px-5 py-2.5 border-t border-white/5 text-[11px] text-gray-600 mt-1">
+          Staff can access: Dashboard · Job Cards · Customers / Vehicles · Sales · Kiosk
+        </div>
+      </div>
+
+      {/* Create modal */}
+      <Modal
+        open={modal}
+        onClose={() => setModal(false)}
+        title="Add Staff Account"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setModal(false)}>Cancel</Button>
+            <Button onClick={submitCreate} loading={submitting}>Create Account</Button>
+          </>
+        }
+      >
+        <form onSubmit={submitCreate} className="space-y-4">
+          {/* Employee mapping */}
+          <Field label="Map to Employee" error={formErrors.employee_id}>
+            <div className="relative">
+              <select
+                value={form.employee_id}
+                onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}
+                disabled={empsLoading}
+                className="w-full appearance-none bg-bg-elev border border-border rounded-lg px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent pr-8 disabled:opacity-50"
+              >
+                <option value="">Common (shared login for all staff)</option>
+                {availEmps.map(emp => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.employee_name} ({emp.employee_code})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">
+              {form.employee_id
+                ? 'This login belongs exclusively to the selected employee.'
+                : 'Common logins are not tied to any specific employee.'}
+            </p>
+          </Field>
+
+          <Field label="Username" required error={formErrors.username}>
+            <Input
+              autoFocus
+              value={form.username}
+              onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+              placeholder='e.g. rajan01  (cannot be "admin")'
+            />
+          </Field>
+          <Field label="Password" required error={formErrors.password}>
+            <div className="relative">
+              <Input
+                type={showPwd ? 'text' : 'password'}
+                value={form.password}
+                onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Min 6 characters"
+                className="pr-9"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(v => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
+                tabIndex={-1}
+              >
+                {showPwd ? <EyeOff size={14} /> : <Eye size={14} />}
+              </button>
+            </div>
+          </Field>
+          <Field label="Confirm Password" required error={formErrors.confirm}>
+            <Input
+              type={showPwd ? 'text' : 'password'}
+              value={form.confirm}
+              onChange={e => setForm(f => ({ ...f, confirm: e.target.value }))}
+              placeholder="Re-enter password"
+            />
+          </Field>
+        </form>
+      </Modal>
+
+      {/* Reset password modal */}
+      <Modal
+        open={!!resetModal}
+        onClose={() => setResetModal(null)}
+        title={`Reset Password — ${resetModal?.employee_name || resetModal?.username}`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setResetModal(null)}>Cancel</Button>
+            <Button onClick={submitReset} loading={resetSaving}>Save Password</Button>
+          </>
+        }
+      >
+        <form onSubmit={submitReset} className="space-y-4">
+          <p className="text-xs text-gray-500">
+            Username: <code className="text-amber-300 font-mono">{resetModal?.username}</code>
+          </p>
+          <Field label="New Password" required error={resetErr}>
+            <Input
+              type="password"
+              autoFocus
+              value={resetPwd}
+              onChange={e => setResetPwd(e.target.value)}
+              placeholder="Min 6 characters"
+            />
+          </Field>
+          <Field label="Confirm Password">
+            <Input
+              type="password"
+              value={resetConf}
+              onChange={e => setResetConf(e.target.value)}
+              placeholder="Re-enter password"
+            />
+          </Field>
+        </form>
+      </Modal>
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={confirmDelete}
+        loading={delLoading}
+        title={`Delete ${confirmDel?.employee_name || confirmDel?.username}?`}
+        message="This staff account will be permanently removed. They will no longer be able to log in."
+      />
+    </>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -347,6 +704,9 @@ export default function SettingsPage() {
 
           {/* Change Password */}
           <ChangePasswordCard />
+
+          {/* Staff Accounts */}
+          <StaffAccountsCard />
         </div>
       )}
     </div>

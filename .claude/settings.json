@@ -35,7 +35,8 @@
       "Bash(backend/venv/Scripts/python.exe -c \"import sys,os; sys.path.insert\\(0,'backend'\\); os.environ['DJANGO_SETTINGS_MODULE']='core.settings'; import django; django.setup\\(\\); from apps.jobcards.views import SalesOrderListCreateView, SalesOrderDeleteView, SalesAnalyticsView; print\\('OK'\\)\")",
       "Bash(backend/venv/Scripts/python.exe -c ' *)",
       "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Detailing_crm\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(python manage.py migrate site_settings)"
     ],
     "additionalDirectories": [
       "C:\\Users\\HP-PC\\.claude\\projects\\d--Projects-Detailing-crm"
