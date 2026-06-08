@@ -247,7 +247,26 @@ class SalaryTransactionListView(APIView):
     def post(self, request):
         serializer = SalaryTransactionSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            txn = serializer.save()
+
+            try:
+                from apps.notifications.utils import queue_notification, _get_business_name
+                emp = txn.employee
+                if emp.employee_phone_number:
+                    queue_notification(
+                        recipient_name=emp.employee_name,
+                        phone=emp.employee_phone_number,
+                        trigger_type='salary_processed',
+                        amount=f"{txn.net_paid:,.2f}",
+                        month=txn.month.strftime('%B %Y'),
+                        business_name=_get_business_name(),
+                    )
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "salary_processed notification failed for transaction %s", txn.id
+                )
+
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 

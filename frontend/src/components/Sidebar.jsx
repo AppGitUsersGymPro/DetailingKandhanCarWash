@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, Users, Wrench,
-  UserCog, Truck, ScanLine, Sparkles, LogOut, User, TrendingUp, Settings2, X, ShoppingCart,
+  UserCog, Truck, ScanLine, Sparkles, LogOut, User, TrendingUp, Settings2, X, ShoppingCart, Bell, BookOpen,
 } from 'lucide-react';
 import { tokens, logout } from '../api/auth';
 
@@ -15,6 +15,8 @@ const ALL_LINKS = [
   { to: '/vendors',   icon: Truck,           label: 'Vendors',            end: false, staffAllowed: false },
   { to: '/finance',   icon: TrendingUp,      label: 'Finance',            end: false, staffAllowed: false },
   { to: '/kiosk',     icon: ScanLine,        label: 'Kiosk',              end: false, staffAllowed: true  },
+  { to: '/notifications', icon: Bell, label: 'Notifications' },
+  { to: '/guide', icon: BookOpen, label: 'User Guide' },
   { to: '/settings',  icon: Settings2,       label: 'Settings',           end: false, staffAllowed: false },
 ];
 

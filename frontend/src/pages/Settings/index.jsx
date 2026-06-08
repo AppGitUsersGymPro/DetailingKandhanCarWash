@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Settings2, Building2, TrendingUp, Cog, ShieldCheck,
-  Save, Eye, EyeOff, ChevronDown, UserPlus, Trash2, KeyRound, Users,
+  Save, Eye, EyeOff, ChevronDown, UserPlus, Trash2, KeyRound, Users, Bell,
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Loading from '../../components/Loading';
@@ -594,6 +594,73 @@ function StaffAccountsCard() {
   );
 }
 
+// ── Notification Toggle Card ──────────────────────────────────────────────────
+
+const NOTIFY_TOGGLES = [
+  { key: 'NOTIFY_CHECKIN',          label: 'Vehicle Check-in',      desc: 'Sent to customer when their vehicle is checked in' },
+  { key: 'NOTIFY_COMPLETED',        label: 'Job Completed',          desc: 'Sent when job card is marked complete and vehicle is ready' },
+  { key: 'NOTIFY_PAYMENT',          label: 'Payment Received',       desc: 'Sent to customer after each payment is recorded' },
+  { key: 'NOTIFY_CUSTOMER_WELCOME', label: 'New Customer Welcome',   desc: 'Sent when a new customer is registered' },
+  { key: 'NOTIFY_GARAGE_PAYMENT',   label: 'Garage Payment Applied', desc: 'Sent to the garage owner when a bulk payment is applied' },
+  { key: 'NOTIFY_SERVICE_REMINDER',      label: 'Service Due Reminder',       desc: 'Sent when a vehicle is due for its next service (scheduled job)' },
+  { key: 'NOTIFY_GARAGE_ALL_COMPLETED',  label: 'Garage All Jobs Done',       desc: 'Sent to garage owner when all their job cards are completed' },
+  { key: 'NOTIFY_LOW_STOCK',             label: 'Low Stock Alert',            desc: 'Sent to admin when inventory drops below minimum threshold' },
+  { key: 'NOTIFY_SALARY',               label: 'Salary Processed',           desc: 'Sent to employee when salary is processed' },
+];
+
+function NotificationTogglesCard({ values, onChange }) {
+  const toast = useToast();
+
+  const toggle = async (key, currentVal) => {
+    const isOn  = currentVal !== 'false';
+    const newVal = isOn ? 'false' : 'true';
+    onChange(key, newVal);
+    try {
+      await updateSettings({ [key]: newVal });
+    } catch (err) {
+      onChange(key, currentVal);
+      toast.error(extractError(err));
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-green-500/20 bg-green-500/5 overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5">
+        <div className="flex items-center gap-2.5">
+          <Bell size={15} className="text-green-400" />
+          <h2 className="text-sm font-semibold text-green-400">WhatsApp Notifications</h2>
+        </div>
+        <span className="text-xs text-gray-500">Saves instantly on toggle</span>
+      </div>
+      <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {NOTIFY_TOGGLES.map(({ key, label, desc }) => {
+          const isOn = (values[key] ?? 'true') !== 'false';
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggle(key, values[key] ?? 'true')}
+              className={`flex items-center justify-between gap-3 rounded-lg px-4 py-3 border text-left transition-colors w-full
+                ${isOn
+                  ? 'border-green-500/30 bg-green-500/10 hover:bg-green-500/15'
+                  : 'border-border bg-bg-elev hover:bg-white/5'
+                }`}
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-gray-200 truncate">{label}</div>
+                <div className="text-xs text-gray-500 mt-0.5 leading-snug">{desc}</div>
+              </div>
+              <div className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors ${isOn ? 'bg-green-500' : 'bg-gray-600'}`}>
+                <span className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-all ${isOn ? 'left-6' : 'left-1'}`} />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
@@ -656,9 +723,12 @@ export default function SettingsPage() {
     }
   };
 
-  // Group settings by category
+  // Group settings by category — exclude NOTIFY_* keys from section cards
+  // (they are shown in the dedicated NotificationTogglesCard instead)
+  const NOTIFY_KEYS = new Set(NOTIFY_TOGGLES.map(t => t.key));
   const grouped = {};
   for (const s of settings) {
+    if (NOTIFY_KEYS.has(s.field_name)) continue;
     if (!grouped[s.category]) grouped[s.category] = [];
     grouped[s.category].push(s);
   }
@@ -701,6 +771,9 @@ export default function SettingsPage() {
               saving={saving}
             />
           ))}
+
+          {/* WhatsApp Notification Toggles */}
+          <NotificationTogglesCard values={values} onChange={handleChange} />
 
           {/* Change Password */}
           <ChangePasswordCard />

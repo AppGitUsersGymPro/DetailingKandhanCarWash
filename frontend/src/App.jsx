@@ -24,6 +24,8 @@ import Vendors from './pages/Vendors';
 import Finance from './pages/Finance';
 import Kiosk from './pages/Kiosk';
 import Settings from './pages/Settings';
+import Notifications from './pages/Notifications';
+import UserGuide from './pages/UserGuide';
 
 function AdminOnly({ children }) {
   const role = tokens.getRole();
@@ -68,6 +70,8 @@ export default function App() {
             <Route path="finance" element={<AdminOnly><Finance /></AdminOnly>} />
             <Route path="settings" element={<AdminOnly><Settings /></AdminOnly>} />
 
+            <Route path="notifications" element={<Notifications />} />
+            <Route path="guide" element={<UserGuide />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

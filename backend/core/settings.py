@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'apps.jobcards',
     'apps.finance',
     'apps.site_settings',
+    'apps.notifications',
 ]
 
 MIDDLEWARE = [
@@ -170,3 +171,7 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# WhatsApp (Meta Cloud API)
+META_WHATSAPP_ACCESS_TOKEN    = config('META_WHATSAPP_ACCESS_TOKEN',    default='')
+META_WHATSAPP_PHONE_NUMBER_ID = config('META_WHATSAPP_PHONE_NUMBER_ID', default='')

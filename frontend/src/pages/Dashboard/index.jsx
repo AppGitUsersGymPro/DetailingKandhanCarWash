@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardList, Users, IndianRupee, AlertTriangle, ArrowRight } from 'lucide-react';
+import { ClipboardList, Users, IndianRupee, AlertTriangle, ArrowRight, Calendar } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import Loading from '../../components/Loading';
@@ -14,77 +14,155 @@ import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
 import DailyReport from './DailyReport';
 
-const formatCurrency = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmt = (n) =>
+  `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+// ── Date range helpers ────────────────────────────────────────────────────────
+
+const pad = (n) => String(n).padStart(2, '0');
+const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+function getDateRange(filter) {
+  const today = new Date();
+  const todayStr = fmtDate(today);
+  if (filter === 'today') {
+    return { date_from: todayStr, date_to: todayStr };
+  }
+  if (filter === 'week') {
+    const from = new Date(today);
+    from.setDate(today.getDate() - 6);
+    return { date_from: fmtDate(from), date_to: todayStr };
+  }
+  if (filter === 'month') {
+    const from = new Date(today.getFullYear(), today.getMonth(), 1);
+    return { date_from: fmtDate(from), date_to: todayStr };
+  }
+  return {};
+}
+
+const FILTERS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week',  label: 'This Week' },
+  { key: 'month', label: 'This Month' },
+  { key: 'all',   label: 'All Time' },
+];
+
+// ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const toast = useToast();
-  const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ active: 0, customers: 0, revenue: 0 });
+  const [dateFilter, setDateFilter] = useState('all');
+  const [loading, setLoading]       = useState(true);
+  const [stats, setStats]           = useState({ active: 0, customers: 0, revenue: 0 });
   const [recentJobs, setRecentJobs] = useState([]);
-  const [lowStock, setLowStock] = useState([]);
+  const [lowStock, setLowStock]     = useState([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const [active, completed, customers, lowStockItems] = await Promise.all([
-          listJobCards({ status: 'IN_PROGRESS' }),
-          listJobCards({ status: 'COMPLETED' }),
-          listCustomers(),
-          listInventory({ low_stock: 'true' }),
-        ]);
-        if (cancelled) return;
-        const activeArr = Array.isArray(active) ? active : (active.results || []);
-        const completedArr = Array.isArray(completed) ? completed : (completed.results || []);
-        const customersArr = Array.isArray(customers) ? customers : (customers.results || []);
-        const lowArr = Array.isArray(lowStockItems) ? lowStockItems : (lowStockItems.results || []);
-        const revenue = completedArr.reduce((sum, j) => sum + jobCardTotal(j), 0);
-        const recent = [...activeArr, ...completedArr]
-          .sort((a, b) => new Date(b.job_card_date || 0) - new Date(a.job_card_date || 0))
-          .slice(0, 6);
-        setStats({ active: activeArr.length, customers: customersArr.length, revenue });
-        setRecentJobs(recent);
-        setLowStock(lowArr);
-      } catch (err) {
-        if (!cancelled) toast.error(extractError(err));
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const load = useCallback(async (filter) => {
+    setLoading(true);
+    try {
+      const range = getDateRange(filter);
+
+      const [active, completed, customers, lowStockItems] = await Promise.all([
+        listJobCards({ status: 'IN_PROGRESS' }),                        // active always unfiltered
+        listJobCards({ status: 'COMPLETED', ...range }),
+        listCustomers(),
+        listInventory({ low_stock: 'true' }),
+      ]);
+
+      const activeArr    = Array.isArray(active)       ? active       : (active.results       || []);
+      const completedArr = Array.isArray(completed)    ? completed    : (completed.results    || []);
+      const customersArr = Array.isArray(customers)    ? customers    : (customers.results    || []);
+      const lowArr       = Array.isArray(lowStockItems)? lowStockItems: (lowStockItems.results|| []);
+
+      const revenue = completedArr.reduce((sum, j) => sum + jobCardTotal(j), 0);
+
+      // Recent = latest jobs within the selected range (active always shown)
+      const allForRecent = range.date_from
+        ? [...activeArr, ...completedArr]
+        : [...activeArr, ...completedArr];
+
+      const recent = allForRecent
+        .sort((a, b) => new Date(b.job_card_date || 0) - new Date(a.job_card_date || 0))
+        .slice(0, 6);
+
+      setStats({ active: activeArr.length, customers: customersArr.length, revenue });
+      setRecentJobs(recent);
+      setLowStock(lowArr);
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setLoading(false);
     }
-    load();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => { load(dateFilter); }, [dateFilter, load]);
+
+  const activeFilter = FILTERS.find(f => f.key === dateFilter);
+  const revenueLabel = dateFilter === 'all' ? 'Revenue (All Time)' : `Revenue (${activeFilter?.label})`;
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Overview of your detailing workshop" />
+      <PageHeader
+        title="Dashboard"
+        subtitle="Overview of your detailing workshop"
+        actions={
+          <div className="flex items-center gap-1.5 bg-bg-elev border border-border rounded-lg p-1">
+            <Calendar size={13} className="text-gray-500 ml-1 shrink-0" />
+            {FILTERS.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setDateFilter(f.key)}
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  dateFilter === f.key
+                    ? 'bg-accent text-white shadow-sm'
+                    : 'text-gray-400 hover:text-gray-100'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
+      {/* Stat cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={ClipboardList} label="Active Job Cards" value={stats.active} accent="yellow" loading={loading} />
-        <StatCard icon={Users} label="Customers" value={stats.customers} accent="blue" loading={loading} />
-        <StatCard icon={IndianRupee} label="Revenue (Completed)" value={formatCurrency(stats.revenue)} accent="green" loading={loading} />
-        <StatCard icon={AlertTriangle} label="Low Stock Alerts" value={lowStock.length} accent="red" loading={loading} />
+        <StatCard icon={ClipboardList} label="Active Job Cards"   value={stats.active}               accent="yellow" loading={loading} />
+        <StatCard icon={Users}         label="Total Customers"    value={stats.customers}             accent="blue"   loading={loading} />
+        <StatCard icon={IndianRupee}   label={revenueLabel}       value={fmt(stats.revenue)}          accent="green"  loading={loading} />
+        <StatCard icon={AlertTriangle} label="Low Stock Alerts"   value={lowStock.length}             accent="red"    loading={loading} />
       </div>
 
-      {/* ── Daily Closing Report ─────────────────────────────────────────── */}
+      {/* Daily Closing Report */}
       <div className="mb-6">
         <DailyReport />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+
+        {/* Recent Job Cards */}
         <div className="lg:col-span-2 bg-bg-card border border-border rounded-xl">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-100">Recent Job Cards</h2>
+            <div>
+              <h2 className="text-base font-semibold text-gray-100">Recent Job Cards</h2>
+              {dateFilter !== 'all' && (
+                <p className="text-xs text-gray-500 mt-0.5">{activeFilter?.label}</p>
+              )}
+            </div>
             <Link to="/jobcards" className="text-xs text-accent hover:underline flex items-center gap-1">
               View all <ArrowRight size={12} />
             </Link>
           </div>
+
           {loading ? (
             <Loading />
           ) : recentJobs.length === 0 ? (
-            <EmptyState icon={ClipboardList} title="No job cards yet" message="Create your first job card to get started." />
+            <EmptyState
+              icon={ClipboardList}
+              title="No job cards"
+              message={dateFilter === 'all' ? 'Create your first job card to get started.' : `No job cards found for ${activeFilter?.label.toLowerCase()}.`}
+            />
           ) : (
             <div className="divide-y divide-border">
               {recentJobs.map((j) => (
@@ -111,6 +189,7 @@ export default function Dashboard() {
           )}
         </div>
 
+        {/* Low Stock */}
         <div className="bg-bg-card border border-border rounded-xl">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-100">Low Stock Alerts</h2>
@@ -135,6 +214,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
