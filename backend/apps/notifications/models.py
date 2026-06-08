@@ -11,6 +11,7 @@ class Notification(models.Model):
         ('customer_welcome',       'Customer Welcome'),
         ('garage_payment',         'Garage Payment'),
         ('service_reminder',       'Service Reminder'),
+        ('service_due_today',      'Service Due Today'),
         ('garage_all_completed',   'Garage All Completed'),
         ('low_stock_alert',        'Low Stock Alert'),
         ('salary_processed',       'Salary Processed'),

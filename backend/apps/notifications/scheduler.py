@@ -11,11 +11,13 @@ _scheduler = None
 
 
 def _job_service_reminder():
-    """Runs daily at 10 AM — queues WhatsApp reminders for vehicles due in 7 days."""
+    """Runs daily at 10 AM — queues reminders for vehicles due in 2 days AND due today."""
     try:
-        from apps.notifications.jobs import notify_service_due
-        logger.info("Scheduler: running service reminder")
+        from apps.notifications.jobs import notify_service_due, notify_service_due_today
+        logger.info("Scheduler: running service reminder (2-day advance)")
         notify_service_due(days_ahead=2)
+        logger.info("Scheduler: running service due today")
+        notify_service_due_today()
     except Exception:
         logger.exception("Scheduler: service reminder job failed")
 

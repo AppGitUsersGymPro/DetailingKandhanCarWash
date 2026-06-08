@@ -26,8 +26,12 @@ TEMPLATES = {
         "job cards at {business_name}. Thank you!"
     ),
     "service_reminder": (
-        "Hi {name}, your vehicle {vehicle_number} is due for a service at {business_name}. "
-        "Book your appointment today!"
+        "Hi {name}, your vehicle {vehicle_number} is due for a service at {business_name} "
+        "in 2 days. Book your appointment soon!"
+    ),
+    "service_due_today": (
+        "Hi {name}, your vehicle {vehicle_number} is due for a service TODAY at {business_name}. "
+        "Please visit us at your earliest convenience!"
     ),
     "garage_all_completed": (
         "Hi {garage_name}, all {count} of your job card(s) at {business_name} are now complete. "
@@ -58,6 +62,7 @@ _TRIGGER_SETTING_KEY = {
     "customer_welcome":        "NOTIFY_CUSTOMER_WELCOME",
     "garage_payment":          "NOTIFY_GARAGE_PAYMENT",
     "service_reminder":        "NOTIFY_SERVICE_REMINDER",
+    "service_due_today":       "NOTIFY_SERVICE_TODAY",
     "garage_all_completed":    "NOTIFY_GARAGE_ALL_COMPLETED",
     "low_stock_alert":         "NOTIFY_LOW_STOCK",
     "salary_processed":        "NOTIFY_SALARY",
