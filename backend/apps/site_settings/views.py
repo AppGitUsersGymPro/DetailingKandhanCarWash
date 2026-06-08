@@ -1,4 +1,5 @@
 from django.contrib.auth.models import User
+from django.db import IntegrityError, transaction
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -183,8 +184,20 @@ class StaffUserListCreateView(APIView):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-        user    = User.objects.create_user(username=username, password=password)
-        profile = UserProfile.objects.create(user=user, role=UserProfile.ROLE_STAFF, employee=employee)
+        try:
+            with transaction.atomic():
+                user    = User.objects.create_user(username=username, password=password)
+                profile = UserProfile.objects.create(user=user, role=UserProfile.ROLE_STAFF, employee=employee)
+        except IntegrityError:
+            # Concurrent request beat us to the same username or employee mapping
+            if User.objects.filter(username=username).exists():
+                return Response({'error': 'Username already taken.'}, status=status.HTTP_400_BAD_REQUEST)
+            if employee and UserProfile.objects.filter(employee=employee).exists():
+                return Response(
+                    {'error': f'{employee.employee_name} already has a login credential.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            return Response({'error': 'Could not create account. Please try again.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(_serialize_staff(user), status=status.HTTP_201_CREATED)
 
 
