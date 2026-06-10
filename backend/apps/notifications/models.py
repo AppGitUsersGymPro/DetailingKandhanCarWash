@@ -7,6 +7,7 @@ class Notification(models.Model):
     TRIGGER_CHOICES = [
         ('job_checkin',            'Job Check-in'),
         ('job_completed',          'Job Completed'),
+        ('service_complete',       'Service Complete'),
         ('payment_received',       'Payment Received'),
         ('customer_welcome',       'Customer Welcome'),
         ('garage_payment',         'Garage Payment'),

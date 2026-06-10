@@ -296,9 +296,35 @@ class JobCardServiceDeleteView(APIView):
                 {'error': 'Not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        old_status = jc_service.service_status
         serializer = JobCardServiceSerializer(jc_service, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        updated = serializer.save()
+
+        if old_status != 'completed' and updated.service_status == 'completed':
+            try:
+                from apps.notifications.utils import queue_notification, _get_business_name
+                jc = updated.job_card
+                remaining_count = jc.job_card_services.exclude(service_status='completed').count()
+                if jc.garage_owner:
+                    recipient_name = jc.garage_owner.name
+                    phone          = jc.garage_owner.phone_number
+                else:
+                    customer       = jc.customer_asset.customer
+                    recipient_name = customer.customer_name
+                    phone          = customer.phone_number
+                queue_notification(
+                    recipient_name=recipient_name,
+                    phone=phone,
+                    trigger_type='service_complete',
+                    service_name=updated.service.service_name,
+                    vehicle_number=jc.customer_asset.vehicle_number,
+                    time=timezone.localtime().strftime('%I:%M %p'),
+                    remaining_count=remaining_count,
+                    business_name=_get_business_name(),
+                )
+            except Exception:
+                logger.exception("service_complete notification failed for jc_service %s", updated.pk)
 
         return Response(serializer.data)
     

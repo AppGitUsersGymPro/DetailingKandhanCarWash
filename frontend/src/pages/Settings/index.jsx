@@ -599,6 +599,7 @@ function StaffAccountsCard() {
 const NOTIFY_TOGGLES = [
   { key: 'NOTIFY_CHECKIN',          label: 'Vehicle Check-in',      desc: 'Sent to customer when their vehicle is checked in' },
   { key: 'NOTIFY_COMPLETED',        label: 'Job Completed',          desc: 'Sent when job card is marked complete and vehicle is ready' },
+  { key: 'NOTIFY_SERVICE_COMPLETE', label: 'Service Completed',      desc: 'Sent each time an individual service inside a job card is marked completed' },
   { key: 'NOTIFY_PAYMENT',          label: 'Payment Received',       desc: 'Sent to customer after each payment is recorded' },
   { key: 'NOTIFY_CUSTOMER_WELCOME', label: 'New Customer Welcome',   desc: 'Sent when a new customer is registered' },
   { key: 'NOTIFY_GARAGE_PAYMENT',   label: 'Garage Payment Applied', desc: 'Sent to the garage owner when a bulk payment is applied' },

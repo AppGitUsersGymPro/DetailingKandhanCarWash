@@ -13,6 +13,10 @@ TEMPLATES = {
         "Job Card #{job_card_number} — Total: ₹{total_amount}. "
         "Thank you for choosing {business_name}!"
     ),
+    "service_complete": (
+        "Hi {name}, the service '{service_name}' for your vehicle {vehicle_number} "
+        "has been completed at {time}. {remaining_count} service(s) still pending at {business_name}."
+    ),
     "payment_received": (
         "Hi {name}, payment of ₹{amount} received for Job Card #{job_card_number} "
         "({vehicle_number}). Balance remaining: ₹{balance}. Thank you!"
@@ -58,6 +62,7 @@ TEMPLATES = {
 _TRIGGER_SETTING_KEY = {
     "job_checkin":             "NOTIFY_CHECKIN",
     "job_completed":           "NOTIFY_COMPLETED",
+    "service_complete":        "NOTIFY_SERVICE_COMPLETE",
     "payment_received":        "NOTIFY_PAYMENT",
     "customer_welcome":        "NOTIFY_CUSTOMER_WELCOME",
     "garage_payment":          "NOTIFY_GARAGE_PAYMENT",
