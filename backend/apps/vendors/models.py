@@ -67,6 +67,9 @@ class Product(models.Model):
     def __str__(self):
         return self.product_name
 
+    class Meta:
+        unique_together = [('product_name', 'product_unit', 'product_type', 'category', 'hsn_code')]
+
 class Inventory(models.Model):
     product           = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='inventory_records')
     brand             = models.CharField(max_length=255, blank=True, default='')
@@ -134,18 +137,30 @@ class Invoice(models.Model):
 
 class InvoiceItem(models.Model):
     invoice       = models.ForeignKey(Invoice, related_name='items', on_delete=models.CASCADE)
-    product       = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product       = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True, blank=True)
     unit_amount   = models.DecimalField(max_digits=10, decimal_places=2, default=1)
     quantity      = models.DecimalField(max_digits=10, decimal_places=2)
     unit_price    = models.DecimalField(max_digits=10, decimal_places=2)   # cost / purchase price
     selling_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     product_brand = models.CharField(max_length=255, blank=True, null=True)
+    product_name  = models.CharField(max_length=255, blank=True, null=True)
+    product_unit  = models.CharField(max_length=10, blank=True, null=True)
 
     class Meta:
-        unique_together = [('invoice', 'product', 'product_brand')]
+        unique_together = [('invoice', 'product', 'product_brand', 'unit_amount')]
+
+    def save(self, *args, **kwargs):
+        if self.product_id:
+            if not self.product_name:
+                self.product_name = self.product.product_name
+            if not self.product_unit:
+                self.product_unit = self.product.product_unit
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.product.product_name} - {self.quantity} {self.product.product_unit}"
+        name = self.product_name or (self.product.product_name if self.product_id else 'Deleted product')
+        unit = self.product_unit or (self.product.product_unit if self.product_id else '')
+        return f"{name} - {self.quantity} {unit}"
 
 
 class InvoicePayment(models.Model):

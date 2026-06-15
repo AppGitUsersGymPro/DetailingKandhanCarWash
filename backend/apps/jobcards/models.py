@@ -19,7 +19,7 @@ class JobCard(models.Model):
     job_card_number = models.CharField(max_length=255, unique=True, blank=True)
     customer_asset = models.ForeignKey('customers.CustomerAsset', on_delete=models.PROTECT)
     job_card_date = models.DateField()
-    vehicle_kilometers = models.DecimalField(max_digits=10, decimal_places=2)
+    vehicle_kilometers = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     vehicle_entry_time = models.DateTimeField()
     vehicle_exit_time = models.DateTimeField(blank=True, null=True)
     vehicle_expected_exit_time = models.DateTimeField(blank=True, null=True)
@@ -49,6 +49,9 @@ class JobCard(models.Model):
 
     def __str__(self):
         return self.job_card_number
+    
+    class Meta:
+        ordering = ['-job_card_date', '-vehicle_entry_time']
     
 class JobCardService(models.Model):
     SERVICE_STATUS = [

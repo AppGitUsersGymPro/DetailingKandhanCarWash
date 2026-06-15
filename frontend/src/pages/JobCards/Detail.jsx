@@ -69,6 +69,7 @@ export default function JobCardDetail() {
         listServices(),
         listEmployees(),
       ]);
+      console.log(j);
       setJob(j);
       setServices(Array.isArray(s) ? s : (s.results || []));
       setEmployees(Array.isArray(e) ? e : (e.results || []));
@@ -665,12 +666,12 @@ function buildComprehensiveBillHTML({ payments, jobCard, totalAmount }) {
   };
   const UNIT_LABEL = { l: 'L', ml: 'ml', pcs: 'pcs', kg: 'kg', g: 'g', box: 'Box', set: 'Set' };
 
-  const total    = Number(totalAmount || 0);
-  const paidAmt  = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
-  const balAmt   = Math.max(0, total - paidAmt);
+  const total = Number(totalAmount || 0);
+  const paidAmt = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const balAmt = Math.max(0, total - paidAmt);
   const fullyPaid = balAmt <= 0;
-  const billNo   = `BILL-${jobCard.job_card_number || jobCard.id}`;
-  const genDate  = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const billNo = `BILL-${jobCard.job_card_number || jobCard.id}`;
+  const genDate = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
   const serviceRows = (jobCard.job_card_services || []).map(s => `
     <tr>
@@ -680,7 +681,7 @@ function buildComprehensiveBillHTML({ payments, jobCard, totalAmount }) {
 
   const salesProds = jobCard.sales_products || [];
   const salesTotal = salesProds.reduce((s, sp) => s + Number(sp.line_total || 0), 0);
-  const salesRows  = salesProds.map(sp => {
+  const salesRows = salesProds.map(sp => {
     const unitStr = `${sp.unit_amount} ${UNIT_LABEL[sp.unit] || sp.unit || ''}`.trim();
     const desc = [sp.brand, unitStr].filter(Boolean).join(' · ');
     return `<tr>
@@ -838,9 +839,9 @@ th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
 function triggerComprehensiveDownload({ payments, jobCard, totalAmount }) {
   const html = buildComprehensiveBillHTML({ payments, jobCard, totalAmount });
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
   a.download = `bill-${(jobCard?.job_card_number || jobCard?.id || 'jc').replace(/\s+/g, '-')}.html`;
   document.body.appendChild(a);
   a.click();
@@ -863,9 +864,9 @@ const METHOD_LABEL = {
 export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding, totalAmount, jobCard }) {
   const toast = useToast();
 
-  const [form, setForm]             = useState({ amount: '', payment_date: localToday(), payment_method: 'cash', notes: '' });
-  const [submitting, setSubmitting]  = useState(false);
-  const [payments, setPayments]     = useState([]);
+  const [form, setForm] = useState({ amount: '', payment_date: localToday(), payment_method: 'cash', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [payments, setPayments] = useState([]);
   const [loadingPay, setLoadingPay] = useState(false);
   const [justRecordedId, setJustRecordedId] = useState(null);
   const [showDownloadBtn, setShowDownloadBtn] = useState(false);
@@ -883,7 +884,7 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
         setPayments(paidList);
         // Pre-fill amount with outstanding balance
         const paid = paidList.reduce((s, p) => s + Number(p.amount || 0), 0);
-        const due  = Math.max(0, Number(totalAmount || 0) - paid);
+        const due = Math.max(0, Number(totalAmount || 0) - paid);
         if (due > 0) setForm(f => ({ ...f, amount: String(due) }));
       })
       .catch(() => setPayments([]))
@@ -891,18 +892,18 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
   }, [open, jobCardId]); // eslint-disable-line
 
   /* Live-compute totals from fetched payments */
-  const total     = Number(totalAmount || 0);
-  const paidAmt   = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
-  const dueAmt    = Math.max(0, total - paidAmt);
+  const total = Number(totalAmount || 0);
+  const paidAmt = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const dueAmt = Math.max(0, total - paidAmt);
   const payStatus = total <= 0 ? 'unpaid'
     : paidAmt >= total ? 'paid'
-    : paidAmt > 0      ? 'partial'
-    : 'unpaid';
+      : paidAmt > 0 ? 'partial'
+        : 'unpaid';
 
   const STATUS_CFG = {
-    paid:    { bg: 'bg-emerald-900/30', border: 'border-emerald-700/50', text: 'text-emerald-300', label: '✓ Fully Paid' },
-    partial: { bg: 'bg-yellow-900/25',  border: 'border-yellow-700/50',  text: 'text-yellow-300',  label: '⚡ Partially Paid' },
-    unpaid:  { bg: 'bg-red-900/20',     border: 'border-red-700/50',     text: 'text-red-300',     label: '✗ Unpaid' },
+    paid: { bg: 'bg-emerald-900/30', border: 'border-emerald-700/50', text: 'text-emerald-300', label: '✓ Fully Paid' },
+    partial: { bg: 'bg-yellow-900/25', border: 'border-yellow-700/50', text: 'text-yellow-300', label: '⚡ Partially Paid' },
+    unpaid: { bg: 'bg-red-900/20', border: 'border-red-700/50', text: 'text-red-300', label: '✗ Unpaid' },
   };
   const scfg = STATUS_CFG[payStatus];
 
@@ -920,10 +921,10 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
     setSubmitting(true);
     try {
       const newPay = await addJobCardPayment(jobCardId, {
-        amount:         enteredAmt,
-        payment_date:   form.payment_date,
+        amount: enteredAmt,
+        payment_date: form.payment_date,
         payment_method: form.payment_method,
-        notes:          form.notes,
+        notes: form.notes,
       });
       const updatedPayments = [...payments, newPay];
       setPayments(updatedPayments);
@@ -1080,7 +1081,7 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
             </Field>
             <Field label="Payment Method">
               <Select value={form.payment_method} onChange={e => upd('payment_method', e.target.value)}>
-                {[['cash','Cash'],['upi','UPI'],['card','Card'],['netbanking','Net Banking'],['cheque','Cheque'],['other','Other']].map(([v,l]) => (
+                {[['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card'], ['netbanking', 'Net Banking'], ['cheque', 'Cheque'], ['other', 'Other']].map(([v, l]) => (
                   <option key={v} value={v}>{l}</option>
                 ))}
               </Select>
@@ -1396,12 +1397,12 @@ function ProductUsageModal({ product, onClose, onChanged }) {
 
 function AddSalesProductModal({ open, onClose, jobCardId, onAdded }) {
   const toast = useToast();
-  const [inventory, setInventory]   = useState([]);
-  const [loading, setLoading]       = useState(false);
-  const [search, setSearch]         = useState('');
+  const [inventory, setInventory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [quantities, setQuantities] = useState({});   // { inventoryId: string }
-  const [prices, setPrices]         = useState({});   // { inventoryId: string }
+  const [prices, setPrices] = useState({});   // { inventoryId: string }
   const [submitting, setSubmitting] = useState(null); // inventoryId being submitted
 
   useEffect(() => {
@@ -1440,12 +1441,12 @@ function AddSalesProductModal({ open, onClose, jobCardId, onAdded }) {
     try {
       await addJobCardSalesProduct(jobCardId, {
         inventory_id: item.id,
-        quantity:     qty,
-        unit_price:   price,
+        quantity: qty,
+        unit_price: price,
       });
       toast.success(`${item.product_name} added`);
       setQuantities((q) => { const n = { ...q }; delete n[item.id]; return n; });
-      setPrices((p)     => { const n = { ...p }; delete n[item.id]; return n; });
+      setPrices((p) => { const n = { ...p }; delete n[item.id]; return n; });
       // Refresh inventory stock display
       setInventory((prev) =>
         prev.map((i) => i.id === item.id

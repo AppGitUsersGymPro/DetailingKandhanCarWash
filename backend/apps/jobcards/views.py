@@ -40,6 +40,7 @@ class FullJobCardCreateView(APIView):
         serializer = FullJobCardCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         job_card = serializer.save()
+        
 
         try:
             from apps.notifications.utils import queue_notification, _get_business_name

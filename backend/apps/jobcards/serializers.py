@@ -1,3 +1,4 @@
+from datetime import timezone
 import logging
 from decimal import Decimal
 from rest_framework import serializers
@@ -99,24 +100,25 @@ class JobCardSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = JobCard
+        ordering = ['-job_card_date', '-vehicle_entry_time']
         fields = '__all__'
 
     def _financials(self, obj):
         # Service prices are GST-inclusive; back-calculate base and GST portion
         svc_total = sum(s.price_at_time for s in obj.job_card_services.all())
         if obj.gst_percent > 0:
-            divisor = Decimal('1') + obj.gst_percent / Decimal('100')
-            base = (svc_total / divisor).quantize(Decimal('0.01'))
-            gst  = svc_total - base
+            divisor = svc_total * ( obj.gst_percent / Decimal('100'))
+            total = svc_total + divisor
+            gst  = total-svc_total 
         else:
-            base     = svc_total
+            total     = svc_total
             gst      = Decimal('0')
         sales = sum(
             (sp.unit_price * sp.quantity for sp in obj.sales_products.all()),
             Decimal('0')
         )
         paid = sum(p.amount for p in obj.payments.all())
-        return base, gst, svc_total, sales, paid
+        return svc_total, gst, total, sales, paid
 
     def get_base_amount(self, obj):
         base, *_ = self._financials(obj)
@@ -212,7 +214,7 @@ class JobCardCoreSerializer(serializers.Serializer):
     job_card_date              = serializers.DateField()
     vehicle_kilometers         = serializers.DecimalField(max_digits=10, decimal_places=2)
     vehicle_entry_time         = serializers.DateTimeField()
-    vehicle_expected_exit_time = serializers.DateTimeField()
+    vehicle_expected_exit_time = serializers.DateTimeField(allow_null=True, required=False)
     complaints                 = serializers.CharField(allow_blank=True, required=False)
     gst_percent                = serializers.DecimalField(
         max_digits=5, decimal_places=2, required=False, default=Decimal('18.00')
@@ -227,6 +229,8 @@ class FullJobCardCreateSerializer(serializers.Serializer):
     vehicle   = VehicleInputSerializer()
     services  = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
     garage_id = serializers.IntegerField(required=False, allow_null=True)
+    amount_given = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    payment_type = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         if not attrs.get('garage_id') and not attrs.get('customer'):
@@ -348,6 +352,19 @@ class FullJobCardCreateSerializer(serializers.Serializer):
                 JobCardProduct(job_card_service=jc_service, service_product=sp)
                 for sp in ServiceProduct.objects.filter(service=svc)
             ])
+        
+        
+        jobcard_id = job_card.id
+        amount_given = validated_data.get('amount_given')
+        payment_method = validated_data.get('payment_type', 'cash') or 'cash'
+        if amount_given is not None and amount_given > 0:
+            from django.utils import timezone
+            JobCardPayment.objects.create(
+                job_card_id=jobcard_id,
+                amount=amount_given,
+                payment_date=timezone.now().date(),
+                payment_method=payment_method,
+            )
 
         return job_card
 

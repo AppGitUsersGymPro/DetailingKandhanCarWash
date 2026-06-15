@@ -110,12 +110,23 @@ class InvoicePaymentSerializer(serializers.ModelSerializer):
 
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.product_name', read_only=True)
+    product_name = serializers.SerializerMethodField()
+    product_unit = serializers.SerializerMethodField()
 
     class Meta:
         model = InvoiceItem
         fields = '__all__'
         read_only_fields = ('invoice',)
+
+    def get_product_name(self, obj):
+        if obj.product_name:
+            return obj.product_name
+        return obj.product.product_name if obj.product_id else None
+
+    def get_product_unit(self, obj):
+        if obj.product_unit:
+            return obj.product_unit
+        return obj.product.product_unit if obj.product_id else None
 
 
 class InvoiceSerializer(serializers.ModelSerializer):

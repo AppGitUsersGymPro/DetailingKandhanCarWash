@@ -23,11 +23,11 @@ const nowLocal = () => {
 
 /* Four-wheeler sub-types — all use the four-wheeler image */
 const FOUR_WHEELER_SUB_TYPES = [
-  { value: 'sedan',               label: 'Sedan',      description: 'Saloon car' },
-  { value: 'compact_suv',         label: 'Compact SUV', description: 'Compact SUV' },
-  { value: 'suv',                 label: 'SUV',         description: 'Full-size SUV' },
-  { value: 'hatchback',           label: 'Hatchback',   description: 'Hatchback car' },
-  { value: 'four_wheeler_others', label: 'Others',      description: 'Other 4-wheelers' },
+  { value: 'sedan', label: 'Sedan', description: 'Saloon car' },
+  { value: 'compact_suv', label: 'Compact SUV', description: 'Compact SUV' },
+  { value: 'suv', label: 'SUV', description: 'Full-size SUV' },
+  { value: 'hatchback', label: 'Hatchback', description: 'Hatchback car' },
+  { value: 'four_wheeler_others', label: 'Others', description: 'Other 4-wheelers' },
 ];
 
 /* Vehicle type options — three_wheeler removed */
@@ -216,11 +216,11 @@ export default function JobCardCreate() {
   const [customerMatch, setCustomerMatch] = useState(null);
 
   /* Owner type: 'customer' | 'garage' */
-  const [ownerType, setOwnerType]         = useState('customer');
-  const [garages, setGarages]             = useState([]);
+  const [ownerType, setOwnerType] = useState('customer');
+  const [garages, setGarages] = useState([]);
   const [loadingGarages, setLoadingGarages] = useState(false);
   const [selectedGarage, setSelectedGarage] = useState(null);
-  const [garageSearch, setGarageSearch]   = useState('');
+  const [garageSearch, setGarageSearch] = useState('');
 
   /* Step 1: basic job card fields only (no phone, no complaints) */
   const [jobCard, setJobCard] = useState({
@@ -238,6 +238,10 @@ export default function JobCardCreate() {
     phone_number: '',
     email: '',
   });
+
+  const [showPaymentPage, setShowPaymentPage] = useState(false);
+
+  const [paymentType, setPaymentType] = useState('cash');
 
   const [vehicle, setVehicle] = useState({
     vehicle_name: '',
@@ -260,6 +264,10 @@ export default function JobCardCreate() {
   const [employees, setEmployees] = useState([]);
   const [tiers, setTiers] = useState({ high_value: [], frequent: [] });
   const [matchedTier, setMatchedTier] = useState(null);
+  // In JobCardCreate
+  const [amountGiven, setAmountGiven] = useState(0);
+
+
 
   useEffect(() => {
     getSettings()
@@ -267,7 +275,7 @@ export default function JobCardCreate() {
         const s = data.find(d => d.field_name === 'default_gst_percent');
         if (s?.value) setGstPercent(s.value);
       })
-      .catch(() => {});
+      .catch(() => { });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -275,7 +283,7 @@ export default function JobCardCreate() {
     listEmployees()
       .then(data => setEmployees(Array.isArray(data) ? data : (data.results || [])))
       .catch(err => toast.error(extractError(err)));
-    getCustomerTiers().then(setTiers).catch(() => {});
+    getCustomerTiers().then(setTiers).catch(() => { });
   }, []); // eslint-disable-line
 
   /* Load garages whenever garage mode is active */
@@ -284,14 +292,14 @@ export default function JobCardCreate() {
     setLoadingGarages(true);
     listGarageOwners(garageSearch ? { q: garageSearch } : undefined)
       .then(d => setGarages(Array.isArray(d) ? d : []))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingGarages(false));
     // eslint-disable-next-line
   }, [ownerType, garageSearch]);
 
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
   const updateCustomer = (k, v) => setCustomer((f) => ({ ...f, [k]: v }));
-  const updateVehicle  = (k, v) => setVehicle((f) => ({ ...f, [k]: v }));
+  const updateVehicle = (k, v) => setVehicle((f) => ({ ...f, [k]: v }));
 
   useEffect(() => {
     if (step !== 3 || services.length > 0) return;
@@ -396,6 +404,11 @@ export default function JobCardCreate() {
     setStep(3);
   };
 
+  const handleNextFromStep3 = () => {
+    setStep(4);
+
+  }
+
   const toggleService = (id) => {
     setSelectedServiceIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -407,14 +420,13 @@ export default function JobCardCreate() {
   const basePrice = visibleServices
     .filter((s) => selectedServiceIds.includes(s.id))
     .reduce((sum, s) => sum + getServicePrice(s, effectivePricingType), 0);
-  const gstAmount  = basePrice * Number(gstPercent || 0) / 100;
+  const gstAmount = basePrice * Number(gstPercent || 0) / 100;
   const totalPrice = basePrice + gstAmount;
 
   /* ── Submit ─────────────────────────────────────────────────────────────── */
   const submit = async () => {
     const e = {};
-    if (jobCard.vehicle_kilometers === '' || isNaN(Number(jobCard.vehicle_kilometers))) e.vehicle_kilometers = 'Required';
-    if (!jobCard.vehicle_expected_exit_time) e.vehicle_expected_exit_time = 'Required';
+    if (!jobCard.employee) e.employee = 'Required'; /* Employee assignment is mandatory at creation time to ensure proper job card processing and accountability. */
     if (Object.keys(e).length) { setErrors(e); return; }
     if (selectedServiceIds.length === 0) {
       toast.error('Select at least one service');
@@ -427,54 +439,55 @@ export default function JobCardCreate() {
         : vehicle.vehicle_type;
 
       const jobCardCore = {
-        job_card_date:             jobCard.job_card_date,
-        vehicle_kilometers:        Number(jobCard.vehicle_kilometers),
-        vehicle_entry_time:        new Date(jobCard.vehicle_entry_time).toISOString(),
-        vehicle_expected_exit_time: new Date(jobCard.vehicle_expected_exit_time).toISOString(),
-        complaints:                complaints,
-        gst_percent:               Number(gstPercent || 18),
-        vehicle_sub_type:          currentVehicleType === 'four_wheeler' ? (vehicleSubType || null) : null,
+        job_card_date: jobCard.job_card_date,
+        vehicle_kilometers: Number(jobCard.vehicle_kilometers),
+        vehicle_entry_time: new Date(jobCard.vehicle_entry_time).toISOString(),
+        vehicle_expected_exit_time: jobCard.vehicle_expected_exit_time ? new Date(jobCard.vehicle_expected_exit_time).toISOString() : null,
+        complaints: complaints,
+        gst_percent: Number(gstPercent || 18),
+        vehicle_sub_type: currentVehicleType === 'four_wheeler' ? (vehicleSubType || null) : null,
         ...(jobCard.employee ? { employee: Number(jobCard.employee) } : {}),
       };
 
       const vehiclePayload = vehicleMatch
         ? {
-            is_new:         false,
-            id:             vehicleMatch.vehicle?.id ?? null,
-            vehicle_number: vehicleMatch.vehicle?.vehicle_number ?? jobCard.vehicle_number.trim(),
-            vehicle_name:   vehicleMatch.vehicle?.vehicle_name ?? '',
-            vehicle_type:   vehicleMatch.vehicle?.vehicle_type ?? '',
-          }
+          is_new: false,
+          id: vehicleMatch.vehicle?.id ?? null,
+          vehicle_number: vehicleMatch.vehicle?.vehicle_number ?? jobCard.vehicle_number.trim(),
+          vehicle_name: vehicleMatch.vehicle?.vehicle_name ?? '',
+          vehicle_type: vehicleMatch.vehicle?.vehicle_type ?? '',
+        }
         : {
-            is_new:          true,
-            id:              null,
-            vehicle_number:  jobCard.vehicle_number.trim(),
-            vehicle_name:    vehicle.vehicle_name.trim(),
-            vehicle_company: vehicle.vehicle_company.trim(),
-            vehicle_model:   vehicle.vehicle_model.trim(),
-            vehicle_colour:  vehicle.vehicle_colour.trim(),
-            vehicle_type:    vehicle.vehicle_type,
-          };
+          is_new: true,
+          id: null,
+          vehicle_number: jobCard.vehicle_number.trim(),
+          vehicle_name: vehicle.vehicle_name.trim(),
+          vehicle_company: vehicle.vehicle_company.trim(),
+          vehicle_model: vehicle.vehicle_model.trim(),
+          vehicle_colour: vehicle.vehicle_colour.trim(),
+          vehicle_type: vehicle.vehicle_type,
+        };
 
       /* Build payload — garage mode omits customer, sends garage_id instead */
       const payload = ownerType === 'garage'
         ? {
-            job_card:   jobCardCore,
-            garage_id:  selectedGarage.id,
-            vehicle:    vehiclePayload,
-            services:   selectedServiceIds,
-          }
+          job_card: jobCardCore,
+          garage_id: selectedGarage.id,
+          vehicle: vehiclePayload,
+          services: selectedServiceIds,
+        }
         : {
-            job_card:  jobCardCore,
-            customer:  vehicleMatch
-              ? { is_new: false, id: vehicleMatch.customer?.id ?? null, customer_name: vehicleMatch.customer?.customer_name ?? '', phone_number: vehicleMatch.customer?.phone_number ?? '', email: vehicleMatch.customer?.email ?? '' }
-              : customerMatch
-                ? { is_new: false, id: customerMatch.customer?.id ?? null, customer_name: customerMatch.customer?.customer_name ?? '', phone_number: customerMatch.customer?.phone_number ?? '', email: customerMatch.customer?.email ?? '' }
-                : { is_new: true, id: null, customer_name: customer.customer_name.trim(), phone_number: customer.phone_number.trim(), email: customer.email.trim() },
-            vehicle:   vehiclePayload,
-            services:  selectedServiceIds,
-          };
-      const created = await createFullJobCard(payload);
+          job_card: jobCardCore,
+          customer: vehicleMatch
+            ? { is_new: false, id: vehicleMatch.customer?.id ?? null, customer_name: vehicleMatch.customer?.customer_name ?? '', phone_number: vehicleMatch.customer?.phone_number ?? '', email: vehicleMatch.customer?.email ?? '' }
+            : customerMatch
+              ? { is_new: false, id: customerMatch.customer?.id ?? null, customer_name: customerMatch.customer?.customer_name ?? '', phone_number: customerMatch.customer?.phone_number ?? '', email: customerMatch.customer?.email ?? '' }
+              : { is_new: true, id: null, customer_name: customer.customer_name.trim(), phone_number: customer.phone_number.trim(), email: customer.email.trim() },
+          vehicle: vehiclePayload,
+          services: selectedServiceIds,
+        };
+      const payloadWithPayment = showPaymentPage ? { ...payload, amount_given: amountGiven, payment_type: paymentType } : payload;
+      const created = await createFullJobCard(payloadWithPayment);
       downloadJobCardInvoice(created);
       toast.success('Job card created — invoice downloaded');
       navigate(`/jobcards/${created.id}`);
@@ -504,99 +517,116 @@ export default function JobCardCreate() {
       <div className="flex gap-4 items-start mt-4">
         {/* ── Main form card ─────────────────────────────────────── */}
         <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 flex-1 min-w-0 max-w-3xl">
-        {step === 1 && (
-          <div className="space-y-5">
-            {/* Owner type toggle */}
-            <OwnerTypeToggle
-              value={ownerType}
-              onChange={(t) => { setOwnerType(t); setSelectedGarage(null); setGarageSearch(''); }}
-            />
+          {step === 1 && (
+            <div className="space-y-5">
+              {/* Owner type toggle */}
+              <OwnerTypeToggle
+                value={ownerType}
+                onChange={(t) => { setOwnerType(t); setSelectedGarage(null); setGarageSearch(''); }}
+              />
 
-            <Step1
-              form={jobCard}
-              update={updateJobCard}
+              <Step1
+                form={jobCard}
+                update={updateJobCard}
+                errors={errors}
+              />
+            </div>
+          )}
+
+          {step === 2 && (
+            <Step2
+              customer={customer}
+              vehicle={vehicle}
+              vehicleSubType={vehicleSubType}
+              setVehicleSubType={setVehicleSubType}
+              complaints={complaints}
+              setComplaints={setComplaints}
+              updateCustomer={updateCustomer}
+              updateVehicle={(k, v) => {
+                updateVehicle(k, v);
+                if (k === 'vehicle_type') setVehicleSubType('');
+              }}
               errors={errors}
+              customerMatch={customerMatch}
+              ownerType={ownerType}
+              selectedGarage={selectedGarage}
             />
+          )}
+
+          {step === 3 && (
+            <Step3
+              services={visibleServices}
+              loading={loadingServices}
+              selectedIds={selectedServiceIds}
+              onToggle={toggleService}
+              effectivePricingType={effectivePricingType}
+              basePrice={basePrice}
+              gstPercent={gstPercent}
+              gstAmount={gstAmount}
+              totalPrice={totalPrice}
+              onGstChange={setGstPercent}
+              matchedCustomer={vehicleMatch?.customer}
+              matchedVehicle={vehicleMatch?.vehicle}
+              matchedTier={matchedTier}
+              jobCardForm={jobCard}
+              updateJobCard={updateJobCard}
+              employees={employees}
+              errors={errors}
+              ownerType={ownerType}
+              selectedGarage={selectedGarage}
+            />
+          )}
+          {step === 4 && (
+            <Step4
+              showPaymentPage={showPaymentPage}
+              onYes={() => setShowPaymentPage(true)}
+              onNo={() => setShowPaymentPage(false)}
+              paymentType={paymentType}
+              setPaymentType={setPaymentType}
+              totalPrice={totalPrice}
+              amountGiven={amountGiven}
+              setAmountGiven={setAmountGiven}
+            />
+          )}
+
+          <div className="flex justify-between items-center gap-2 mt-6 pt-6 border-t border-border">
+            <Link to="/jobcards">
+              <Button variant="ghost" type="button">Cancel</Button>
+            </Link>
+            <div className="flex gap-2">
+              {step === 2 && (
+                <Button variant="secondary" type="button" onClick={() => setStep(1)}>
+                  <ChevronLeft size={14} /> Back
+                </Button>
+              )}
+              {step === 3 && (
+                <Button variant="secondary" type="button" onClick={() => setStep(vehicleMatch ? 1 : 2)}>
+                  <ChevronLeft size={14} /> Back
+                </Button>
+              )}
+              {step === 1 && (
+                <Button type="button" loading={checking} onClick={handleNextFromStep1}>
+                  Next <ChevronRight size={14} />
+                </Button>
+              )}
+              {step === 2 && (
+                <Button type="button" loading={checking} onClick={handleNextFromStep2}>
+                  Next <ChevronRight size={14} />
+                </Button>
+              )}
+              {step === 3 && (
+                <Button type="button" loading={checking} onClick={handleNextFromStep3}>
+                  Next <ChevronRight size={14} />
+                </Button>
+              )}
+              {step === 4 && (
+                <Button type="button" variant="success" loading={submitting} onClick={submit}>
+                  <Check size={14} /> Confirm
+                </Button>
+              )}
+            </div>
           </div>
-        )}
-
-        {step === 2 && (
-          <Step2
-            customer={customer}
-            vehicle={vehicle}
-            vehicleSubType={vehicleSubType}
-            setVehicleSubType={setVehicleSubType}
-            complaints={complaints}
-            setComplaints={setComplaints}
-            updateCustomer={updateCustomer}
-            updateVehicle={(k, v) => {
-              updateVehicle(k, v);
-              if (k === 'vehicle_type') setVehicleSubType('');
-            }}
-            errors={errors}
-            customerMatch={customerMatch}
-            ownerType={ownerType}
-            selectedGarage={selectedGarage}
-          />
-        )}
-
-        {step === 3 && (
-          <Step3
-            services={visibleServices}
-            loading={loadingServices}
-            selectedIds={selectedServiceIds}
-            onToggle={toggleService}
-            effectivePricingType={effectivePricingType}
-            basePrice={basePrice}
-            gstPercent={gstPercent}
-            gstAmount={gstAmount}
-            totalPrice={totalPrice}
-            onGstChange={setGstPercent}
-            matchedCustomer={vehicleMatch?.customer}
-            matchedVehicle={vehicleMatch?.vehicle}
-            matchedTier={matchedTier}
-            jobCardForm={jobCard}
-            updateJobCard={updateJobCard}
-            employees={employees}
-            errors={errors}
-            ownerType={ownerType}
-            selectedGarage={selectedGarage}
-          />
-        )}
-
-        <div className="flex justify-between items-center gap-2 mt-6 pt-6 border-t border-border">
-          <Link to="/jobcards">
-            <Button variant="ghost" type="button">Cancel</Button>
-          </Link>
-          <div className="flex gap-2">
-            {step === 2 && (
-              <Button variant="secondary" type="button" onClick={() => setStep(1)}>
-                <ChevronLeft size={14} /> Back
-              </Button>
-            )}
-            {step === 3 && (
-              <Button variant="secondary" type="button" onClick={() => setStep(vehicleMatch ? 1 : 2)}>
-                <ChevronLeft size={14} /> Back
-              </Button>
-            )}
-            {step === 1 && (
-              <Button type="button" loading={checking} onClick={handleNextFromStep1}>
-                Next <ChevronRight size={14} />
-              </Button>
-            )}
-            {step === 2 && (
-              <Button type="button" loading={checking} onClick={handleNextFromStep2}>
-                Next <ChevronRight size={14} />
-              </Button>
-            )}
-            {step === 3 && (
-              <Button type="button" variant="success" loading={submitting} onClick={submit}>
-                <Check size={14} /> Confirm
-              </Button>
-            )}
-          </div>
-        </div>
-        {/* ── Right-side garage panel — only visible in garage mode, step 1 ── */}
+          {/* ── Right-side garage panel — only visible in garage mode, step 1 ── */}
         </div>
         {ownerType === 'garage' && step === 1 && (
           <div className="w-80 shrink-0 bg-bg-card border border-border rounded-xl overflow-hidden sticky top-4">
@@ -620,23 +650,23 @@ function Stepper({ step, skippedCustomer }) {
     { n: 1, label: 'Job Card' },
     { n: 2, label: 'Customer & Vehicle' },
     { n: 3, label: 'Services' },
+    { n: 4, label: 'Payment' },
   ];
   return (
     <div className="flex items-center gap-2 max-w-3xl">
       {steps.map((s, i) => {
         const isActive = step === s.n;
-        const isDone   = step > s.n || (s.n === 2 && skippedCustomer && step === 3);
+        const isDone = step > s.n || (s.n === 2 && skippedCustomer && step === 3);
         const isSkipped = s.n === 2 && skippedCustomer && step === 3;
         return (
           <div key={s.n} className="flex items-center gap-2 flex-1">
             <div
-              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium border ${
-                isActive
-                  ? 'bg-accent border-accent text-white'
-                  : isDone
-                    ? 'bg-emerald-600 border-emerald-600 text-white'
-                    : 'bg-bg-elev border-border text-gray-400'
-              }`}
+              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium border ${isActive
+                ? 'bg-accent border-accent text-white'
+                : isDone
+                  ? 'bg-emerald-600 border-emerald-600 text-white'
+                  : 'bg-bg-elev border-border text-gray-400'
+                }`}
             >
               {isDone ? <Check size={14} /> : s.n}
             </div>
@@ -657,17 +687,16 @@ function OwnerTypeToggle({ value, onChange }) {
     <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 w-fit">
       {[
         { v: 'customer', label: 'Customer' },
-        { v: 'garage',   label: 'Garage' },
+        { v: 'garage', label: 'Garage' },
       ].map(({ v, label }) => (
         <button
           key={v}
           type="button"
           onClick={() => onChange(v)}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
-            value === v
-              ? 'bg-accent text-white shadow'
-              : 'text-gray-400 hover:text-gray-200'
-          }`}
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${value === v
+            ? 'bg-accent text-white shadow'
+            : 'text-gray-400 hover:text-gray-200'
+            }`}
         >
           {label}
         </button>
@@ -705,9 +734,8 @@ function GaragePanel({ garages, loading, selected, onSelect, search, onSearch })
                 key={g.id}
                 type="button"
                 onClick={() => onSelect(g)}
-                className={`w-full text-left px-4 py-2.5 transition-colors flex items-center gap-3 ${
-                  isSelected ? 'bg-accent/10 border-l-2 border-accent' : 'hover:bg-bg-hover'
-                }`}
+                className={`w-full text-left px-4 py-2.5 transition-colors flex items-center gap-3 ${isSelected ? 'bg-accent/10 border-l-2 border-accent' : 'hover:bg-bg-hover'
+                  }`}
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-100 truncate">{g.garage_name}</div>
@@ -966,16 +994,14 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
         </div>
       )}
       {matchedTier && (
-        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${
-          matchedTier.type === 'H'
-            ? 'bg-violet-900/20 border-violet-700/50'
-            : 'bg-cyan-900/20 border-cyan-700/50'
-        }`}>
-          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-extrabold shrink-0 ${
-            matchedTier.type === 'H'
-              ? 'bg-violet-800/60 text-violet-200 border border-violet-600/50'
-              : 'bg-cyan-800/60 text-cyan-200 border border-cyan-600/50'
-          }`}>{matchedTier.type}</span>
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 ${matchedTier.type === 'H'
+          ? 'bg-violet-900/20 border-violet-700/50'
+          : 'bg-cyan-900/20 border-cyan-700/50'
+          }`}>
+          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-extrabold shrink-0 ${matchedTier.type === 'H'
+            ? 'bg-violet-800/60 text-violet-200 border border-violet-600/50'
+            : 'bg-cyan-800/60 text-cyan-200 border border-cyan-600/50'
+            }`}>{matchedTier.type}</span>
           <div>
             <div className={`text-xs font-semibold ${matchedTier.type === 'H' ? 'text-violet-300' : 'text-cyan-300'}`}>
               {matchedTier.label}
@@ -1008,9 +1034,8 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
                   key={s.id}
                   type="button"
                   onClick={() => onToggle(s.id)}
-                  className={`text-left p-3 rounded-md border transition-colors ${
-                    checked ? 'bg-accent/10 border-accent' : 'bg-bg border-border hover:border-gray-600'
-                  }`}
+                  className={`text-left p-3 rounded-md border transition-colors ${checked ? 'bg-accent/10 border-accent' : 'bg-bg border-border hover:border-gray-600'
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -1063,6 +1088,69 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
           <span className="font-semibold text-gray-100">Total</span>
           <span className="text-lg font-semibold text-gray-100">₹{totalPrice.toFixed(2)}</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PayMentModal({ value, onChange, totalPrice, setAmountGiven, amountGiven }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 w-fit">
+        <p> Select Payment Type </p>
+        <Select value={value} onChange={onChange}>
+          <option value="cash">Cash</option>
+          <option value="upi">UPI</option>
+        </Select>
+      </div>
+      {value === 'cash' ? <CashModal totalPrice={totalPrice} setAmountGiven={setAmountGiven} amountGiven={amountGiven} /> : <UPIModal totalPrice={totalPrice} />}
+    </div>
+  );
+}
+
+function Step4({ showPaymentPage, onYes, onNo, paymentType, setPaymentType, totalPrice, amountGiven, setAmountGiven }) {
+
+  return (
+    <div>
+      <h2> Payment Page </h2>
+      <div>
+        <p> Do you want to pay Now </p>
+        <Button onClick={() => onYes()}> Yes </Button>
+        <Button onClick={() => onNo()}> No </Button>
+      </div>
+      {showPaymentPage === true ? <PayMentModal value={paymentType} onChange={(e) => setPaymentType(e.target.value)} totalPrice={totalPrice} setAmountGiven={setAmountGiven} amountGiven={amountGiven} /> : <p> You can pay later from the Job Card details page </p>}
+    </div>
+  );
+}
+
+function CashModal({ totalPrice, setAmountGiven, amountGiven }) {
+  const remaining = totalPrice - amountGiven;
+  console.log(totalPrice, 'totalPrice');
+  return (
+    <div>
+      <h2> Payment Details </h2>
+      <div>
+        <Field label="Total Amount">
+          <Input value={totalPrice} disabled />
+        </Field>
+        <Field label="Amount Received" >
+          <Input type="number" value={amountGiven} onChange={(e) => setAmountGiven(parseFloat(e.target.value) || 0)} />
+        </Field>
+        <Field label="Change to Return" >
+          <Input disabled value={remaining} />
+        </Field>
+      </div>
+    </div>
+  );
+}
+
+function UPIModal({ totalPrice }) {
+  return (
+    <div>
+      <h2> UPI Payment </h2>
+      <p> Please scan the QR code below to pay ₹{totalPrice.toFixed(2)} </p>
+      <div className="w-64 h-64 bg-gray-300 flex items-center justify-center text-gray-500">
+        QR Code Placeholder
       </div>
     </div>
   );

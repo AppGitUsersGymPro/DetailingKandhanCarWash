@@ -2,6 +2,7 @@ from decimal import Decimal
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from django.db import transaction
 from django.db.models import Prefetch
 from .models import Vendor, ProductType, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
 from .serializers import (
@@ -235,7 +236,8 @@ class InvoiceListCreateView(APIView):
     def post(self, request):
         serializer = InvoiceCreateSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            with transaction.atomic():
+                serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
