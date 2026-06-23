@@ -100,16 +100,16 @@ class JobCardListCreateView(APIView):
         serializer = JobCardSerializer(qs, many=True)
         return Response(serializer.data)
 
-    def post(self, request):
-        serializer = JobCardSerializer(data=request.data)
-        vehicle_number = serializer.vehicle_number
-        customer_name = serializer.customer_name
-        existing_vehicle = CustomerAsset.objects.filter(vehicle_number=vehicle_number).first()
-        existing_customer = Customer.objects.filter(customer_name=customer_name).first()
-        if existing_vehicle and serializer.is_valid():
-            serializer.save(customer_asset=existing_vehicle)
-            return Response(existing_vehicle, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    # def post(self, request):
+    #     serializer = JobCardSerializer(data=request.data)
+    #     vehicle_number = serializer.vehicle_number
+    #     customer_name = serializer.customer_name
+    #     existing_vehicle = CustomerAsset.objects.filter(vehicle_number=vehicle_number).first()
+    #     existing_customer = Customer.objects.filter(customer_name=customer_name).first()
+    #     if existing_vehicle and serializer.is_valid():
+    #         serializer.save(customer_asset=existing_vehicle)
+    #         return Response(existing_vehicle, status=status.HTTP_201_CREATED)
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class JobCardDetailView(APIView):

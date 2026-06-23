@@ -132,7 +132,7 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
 class InvoiceSerializer(serializers.ModelSerializer):
     items = InvoiceItemSerializer(many=True, read_only=True)
     payments = InvoicePaymentSerializer(many=True, read_only=True)
-    vendor_name = serializers.CharField(source='vendor.vendor_name', read_only=True)
+    vendor_name = serializers.SerializerMethodField()
     total_paid = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     outstanding_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     payment_status = serializers.CharField(read_only=True)
@@ -140,6 +140,11 @@ class InvoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invoice
         fields = '__all__'
+        
+    def get_vendor_name(self,obj):
+        if obj.vendor_id:
+            return obj.vendor.vendor_name
+        return obj.vendor_name
 
 
 class InvoiceCreateSerializer(serializers.ModelSerializer):

@@ -94,11 +94,23 @@ class Inventory(models.Model):
 class Invoice(models.Model):
     invoice_number    = models.CharField(max_length=255, unique=True, blank=True)
     vendor_invoice_id = models.CharField(max_length=255, blank=True, default='')
-    vendor       = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+    vendor       = models.ForeignKey(Vendor, on_delete=models.SET_NULL,null=True, blank=True)
     invoice_date = models.DateField()
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    vendor_name = models.CharField(max_length=255, blank=True, null=True)
+    vendor_gst_number = models.CharField(max_length=255, blank=True, null=True)
+    vendor_phone_number = models.CharField(max_length=20, unique=True,blank=True, null=True)
+
 
     def save(self, *args, **kwargs):
+        if self.vendor_id:
+            if not self.vendor_name:
+                self.vendor_name = self.vendor.vendor_name
+            if not self.vendor_gst_number:
+                self.vendor_gst_number = self.vendor.vendor_gst_number
+            if not self.vendor_phone_number:
+                self.vendor_phone_number = self.vendor.vendor_phone_number
+
         if not self.invoice_number:
             date_str = self.invoice_date.strftime('%Y%m%d') if self.invoice_date else 'NODATE'
             prefix = f'INV-V{self.vendor_id}-{date_str}-'
@@ -134,6 +146,9 @@ class Invoice(models.Model):
         elif paid > 0:
             return 'partial'
         return 'unpaid'
+    
+    class Meta:
+        ordering = ['-invoice_date']
 
 class InvoiceItem(models.Model):
     invoice       = models.ForeignKey(Invoice, related_name='items', on_delete=models.CASCADE)

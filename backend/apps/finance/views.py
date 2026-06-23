@@ -2,13 +2,13 @@ from calendar import monthrange
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, date, timedelta
 
-from django.db.models import Q, Sum, Count, Max
+from django.db.models import F, Q, DecimalField, Sum, Count, Max
 from apps.finance.serializers import ExpenseSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.jobcards.models import JobCard, JobCardPayment, JobCardProductUsage
+from apps.jobcards.models import JobCard, JobCardPayment, JobCardProductUsage, SalesOrder
 from apps.employees.models import SalaryTransaction, SalaryAdvance
 from apps.vendors.models import InvoicePayment
 from apps.finance.models import Expense
@@ -38,7 +38,7 @@ def _jc_base_gst_total(jc):
         # base = (total / divisor).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
         gst  = total - base
     else:
-        base = total
+        total = base
         gst  = Decimal('0')
     total = sum(s.quantity * s.unit_price for s in jc.sales_products.all()) + total
     return base, gst, total
@@ -109,7 +109,12 @@ def _expense_for_period(year, month):
         payment_date__month=month,
     ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
 
-    return salary + advance + invoice
+    others = Expense.objects.filter(
+        date__year = year,
+        date__month = month,
+    ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+
+    return salary + advance + invoice + others
 
 
 class FinanceDashboardView(APIView):
@@ -142,9 +147,13 @@ class FinanceDashboardView(APIView):
             this_total += total
             this_base  += base
             this_gst   += gst
-
-        tbc_total = prev_total + this_total
-        tbc_base  = prev_base  + this_base
+        direct_sales_order = SalesOrder.objects.filter(
+            sale_date__year = year,
+            sale_date__month = month,
+        ).aggregate(
+    total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
+        tbc_total = prev_total + this_total + direct_sales_order
+        tbc_base  = prev_base  + this_base + direct_sales_order
         tbc_gst   = prev_gst   + this_gst
         # ── Collected this month: payments whose payment_date falls in this
         # month (regardless of when the JC was created). GST-first split needs
@@ -182,18 +191,30 @@ class FinanceDashboardView(APIView):
             col_base  += base_portion
             col_gst   += gst_portion
 
+        col_total += SalesOrder.objects.filter(
+            sale_date__year = year,
+            sale_date__month = month
+        ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
+        
+        col_base += SalesOrder.objects.filter(
+            sale_date__year = year,
+            sale_date__month = month
+        ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
         expense_of_month  = _expense_for_period(year, month)
-        net_savings       = col_total - expense_of_month
+        net_savings       = col_base - expense_of_month
         outstanding_month = out_total
 
         # ── Yearly income (billed, current year) ─────────
         year_jcs = JobCard.objects.filter(
             job_card_date__year=current_year,
-        ).prefetch_related('job_card_services')
+        ).prefetch_related('job_card_services', 'sales_products')
         yearly_income = Decimal('0')
         for jc in year_jcs:
             yearly_income += sum(s.price_at_time for s in jc.job_card_services.all())
-
+            yearly_income += sum(s.quantity * s.unit_price for s in jc.sales_products.all())
+        yearly_income += SalesOrder.objects.filter(
+            sale_date__year = current_year,
+            ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
         # ── Monthly chart (12 months of current year) ────
         # income    = billed for JCs created in that month (what was sold).
         # collected = payments received in that month (when cash came in).
@@ -202,17 +223,24 @@ class FinanceDashboardView(APIView):
             m_jcs = JobCard.objects.filter(
                 job_card_date__year=current_year,
                 job_card_date__month=m,
-            ).prefetch_related('job_card_services')
+            ).prefetch_related('job_card_services','sales_products')
 
             m_income = Decimal('0')
             for jc in m_jcs:
                 m_income += sum(s.price_at_time for s in jc.job_card_services.all())
-
+                m_income += sum(s.unit_price * s.quantity for s in jc.sales_products.all())
             m_collected = JobCardPayment.objects.filter(
                 payment_date__year=current_year,
                 payment_date__month=m,
             ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-
+            m_collected += SalesOrder.objects.filter(
+                sale_date__year = current_year,
+                sale_date__month = m,
+            ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
+            m_income += SalesOrder.objects.filter(
+                sale_date__year = current_year,
+                sale_date__month = m,
+            ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
             m_expense = _expense_for_period(current_year, m)
             m_savings = m_collected - m_expense
 
