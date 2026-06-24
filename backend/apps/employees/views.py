@@ -300,7 +300,10 @@ class SalaryTransactionDetailView(APIView):
 # ── Salary Compute (attendance-based) ────────────────────────────────────────
 # Off-days are paid time-off: total_scheduled = ALL calendar days × shift_mins.
 # Off-day hours are auto-credited unless an absent/leave record exists for that day.
-# billable_mins = max(0, worked + off_day_credit + overtime − late)
+# worked_minutes already includes overtime (check_out − check_in raw), and already
+# excludes late time (late arrival means less worked time). Adding OT or subtracting
+# late on top of worked_minutes would double-count both.
+# billable_mins = max(0, worked + off_day_credit)
 # hours_pct     = billable_mins / total_scheduled_mins × 100
 # computed      = base_salary × hours_pct / 100
 
@@ -389,8 +392,8 @@ class SalaryComputeView(APIView):
                     else:
                         off_day_credit_mins += shift_mins_per_day
 
-        # Core formula
-        billable_mins = max(0, total_worked_mins + off_day_credit_mins + total_ot_mins - total_late_mins)
+        # Core formula — OT and late are already baked into worked_minutes
+        billable_mins = max(0, total_worked_mins + off_day_credit_mins)
         if total_scheduled_mins > 0:
             hours_pct = round(billable_mins / total_scheduled_mins * 100, 1)
         else:
