@@ -1,6 +1,118 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+
+// ─── Shared styled-Excel engine ────────────────────────────────────────────────
+// Colors (ARGB)
+const C = {
+  titleBg:      'FF0F172A', titleFg:      'FFFFFFFF',
+  subBg:        'FF1E293B', subFg:        'FF94A3B8',
+  headerBg:     'FF4F46E5', headerFg:     'FFFFFFFF', headerBorder: 'FF3730A3',
+  rowEven:      'FFFFFFFF', rowOdd:       'FFF5F3FF',
+  cellBorder:   'FFE2E8F0', cellFg:       'FF1E293B',
+  totalsBg:     'FFE0E7FF', totalsFg:     'FF1E1B4B', totalsBorderTop: 'FF4F46E5',
+};
+
+function border(style, color) { return { style, color: { argb: color } }; }
+
+function _addSheet(wb, { name, title, subtitle, headers, rows, totals, colWidths }) {
+  const ws  = wb.addWorksheet(name);
+  const n   = headers.length;
+  let   ri  = 1;
+
+  // Column widths
+  headers.forEach((_, i) => { ws.getColumn(i + 1).width = colWidths?.[i] ?? 18; });
+
+  // Title row (merged, dark bg)
+  ws.mergeCells(ri, 1, ri, n);
+  const tc = ws.getCell(ri, 1);
+  tc.value = title;
+  tc.font  = { bold: true, size: 13, color: { argb: C.titleFg } };
+  tc.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.titleBg } };
+  tc.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+  ws.getRow(ri).height = 28;
+  ri++;
+
+  // Subtitle row
+  if (subtitle) {
+    ws.mergeCells(ri, 1, ri, n);
+    const sc = ws.getCell(ri, 1);
+    sc.value = subtitle;
+    sc.font  = { size: 9, italic: true, color: { argb: C.subFg } };
+    sc.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.subBg } };
+    sc.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
+    ws.getRow(ri).height = 17;
+    ri++;
+  }
+
+  ri++; // blank spacer
+
+  // Header row (indigo bg, white bold)
+  headers.forEach((h, ci) => {
+    const hc = ws.getCell(ri, ci + 1);
+    hc.value = h;
+    hc.font  = { bold: true, size: 10, color: { argb: C.headerFg } };
+    hc.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.headerBg } };
+    hc.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    hc.border = {
+      top: border('thin', C.headerBorder), bottom: border('thin', C.headerBorder),
+      left: border('thin', C.headerBorder), right: border('thin', C.headerBorder),
+    };
+  });
+  ws.getRow(ri).height = 22;
+  ws.autoFilter = { from: { row: ri, column: 1 }, to: { row: ri, column: n } };
+  ri++;
+
+  // Data rows (alternating white / light purple tint)
+  rows.forEach((rowData, rIdx) => {
+    const bg = rIdx % 2 === 0 ? C.rowEven : C.rowOdd;
+    rowData.forEach((val, ci) => {
+      const dc = ws.getCell(ri, ci + 1);
+      dc.value = val ?? '';
+      dc.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: bg } };
+      dc.font  = { size: 9, color: { argb: C.cellFg } };
+      dc.alignment = { vertical: 'middle' };
+      dc.border = {
+        top: border('hair', C.cellBorder), bottom: border('hair', C.cellBorder),
+        left: border('thin', C.cellBorder), right: border('thin', C.cellBorder),
+      };
+    });
+    ws.getRow(ri).height = 18;
+    ri++;
+  });
+
+  // Totals row (indigo-100 bg, bold, thick top border)
+  if (totals?.length) {
+    totals.forEach((val, ci) => {
+      const vc = ws.getCell(ri, ci + 1);
+      vc.value = val ?? '';
+      vc.font  = { bold: true, size: 10, color: { argb: C.totalsFg } };
+      vc.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: C.totalsBg } };
+      vc.alignment = { vertical: 'middle' };
+      vc.border = {
+        top:    border('medium', C.totalsBorderTop),
+        bottom: border('thin',   C.totalsBorderTop),
+        left:   border('thin',   C.cellBorder),
+        right:  border('thin',   C.cellBorder),
+      };
+    });
+    ws.getRow(ri).height = 20;
+  }
+}
+
+export async function styledXlsxDownload(filename, sheets) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator  = 'Detailing CRM';
+  wb.created  = new Date();
+  sheets.forEach(s => _addSheet(wb, s));
+  const buf  = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
 
 const r = (n) => Number(n || 0).toFixed(2);
 const fmtRs = (n) => `Rs. ${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
@@ -151,23 +263,35 @@ export function downloadInvoicePdf(invoice) {
 
 // ─── Invoices Excel ────────────────────────────────────
 
-export function exportInvoicesExcel(rows, filename = 'invoices.xlsx') {
-  const data = rows.map((inv) => ({
-    'Invoice #':       inv.invoice_number,
-    'Vendor Ref #':    inv.vendor_invoice_id || '',
-    'Vendor':          inv.vendor_name || '',
-    'Date':            inv.invoice_date || '',
-    'Total (Rs.)':     r(inv.total_amount),
-    'Paid (Rs.)':      r(inv.total_paid),
-    'Outstanding (Rs.)': r(inv.outstanding_amount),
-    'Status':          inv.payment_status || '',
-  }));
-  const ws = XLSX.utils.json_to_sheet(data);
-  // widen columns
-  ws['!cols'] = [16, 18, 24, 12, 14, 14, 18, 10].map((w) => ({ wch: w }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-  XLSX.writeFile(wb, filename);
+export async function exportInvoicesExcel(rows, filename = 'invoices.xlsx') {
+  const headers = ['Invoice #', 'Vendor Ref #', 'Vendor', 'Date', 'Total (Rs.)', 'Paid (Rs.)', 'Outstanding (Rs.)', 'Status'];
+  const dataRows = rows.map((inv) => [
+    inv.invoice_number,
+    inv.vendor_invoice_id || '',
+    inv.vendor_name || '',
+    inv.invoice_date || '',
+    Number(inv.total_amount)       || 0,
+    Number(inv.total_paid)         || 0,
+    Number(inv.outstanding_amount) || 0,
+    (inv.payment_status || '').toUpperCase(),
+  ]);
+  const totalsRow = [
+    'TOTAL', '', '', '',
+    dataRows.reduce((s, r) => s + r[4], 0),
+    dataRows.reduce((s, r) => s + r[5], 0),
+    dataRows.reduce((s, r) => s + r[6], 0),
+    '',
+  ];
+
+  await styledXlsxDownload(filename, [{
+    name: 'Invoices',
+    title: 'Vendor Invoices',
+    subtitle: `Generated: ${new Date().toLocaleDateString('en-IN')} · ${rows.length} invoice${rows.length !== 1 ? 's' : ''}`,
+    headers,
+    rows: dataRows,
+    totals: totalsRow,
+    colWidths: [18, 18, 26, 13, 16, 16, 20, 13],
+  }]);
 }
 
 // ─── Inventory Excel ────────────────────────────────────

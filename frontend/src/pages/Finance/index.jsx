@@ -3,7 +3,7 @@ import {
   IndianRupee, TrendingUp, TrendingDown, Wallet,
   AlertCircle, Download, Search, ChevronDown,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { styledXlsxDownload } from '../../utils/export';
 import {
   ResponsiveContainer, ComposedChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -76,16 +76,27 @@ function SideBox({ label, value, icon: Icon, accent = 'indigo', loading }) {
   );
 }
 
-function exportExcel(rows, cols, filename) {
-  const data = rows.map(r => {
-    const obj = {};
-    cols.forEach(c => { obj[c.label] = r[c.key]; });
-    return obj;
+async function exportExcel(rows, cols, filename, title) {
+  const dataRows = rows.map(r => cols.map(c => {
+    const v = r[c.key];
+    const n = Number(v);
+    return (v !== '' && v !== null && v !== undefined && !isNaN(n) && typeof v !== 'boolean') ? n : (v ?? '');
+  }));
+  const totalsRow = cols.map((_, ci) => {
+    if (ci === 0) return 'TOTAL';
+    const nums = dataRows.map(r => r[ci]).filter(v => typeof v === 'number');
+    return nums.length > 0 ? nums.reduce((a, b) => a + b, 0) : '';
   });
-  const ws = XLSX.utils.json_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-  XLSX.writeFile(wb, `${filename}.xlsx`);
+
+  await styledXlsxDownload(`${filename}.xlsx`, [{
+    name: 'Report',
+    title: title || filename,
+    subtitle: `Generated: ${new Date().toLocaleDateString('en-IN')} · ${rows.length} record${rows.length !== 1 ? 's' : ''}`,
+    headers: cols.map(c => c.label),
+    rows: dataRows,
+    totals: totalsRow,
+    colWidths: cols.map(c => Math.max(c.label.length + 4, 14)),
+  }]);
 }
 
 function CatBar({ title, data }) {
@@ -351,7 +362,7 @@ export default function FinanceDashboard() {
                   { key: 'gst_to_collect', label: 'GST To Collect (₹)' },
                   { key: 'outstanding', label: 'Outstanding (₹)' },
                   { key: 'payment_status', label: 'Status' },
-                ], `income-${month}`)}
+                ], `income-${month}`, `Income Report — ${month}`)}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
               >
                 <Download size={12} /> Excel
@@ -427,7 +438,7 @@ export default function FinanceDashboard() {
                   { key: 'category', label: 'Category' },
                   { key: 'amount', label: 'Amount (₹)' },
                   { key: 'reference', label: 'Reference' },
-                ], `expense-${month}`)}
+                ], `expense-${month}`, `Expense Report — ${month}`)}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
               >
                 <Download size={12} /> Excel
