@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { styledXlsxDownload } from '../../utils/export';
 import PageHeader   from '../../components/PageHeader';
 import Loading      from '../../components/Loading';
 import EmptyState   from '../../components/EmptyState';
@@ -87,32 +88,51 @@ export default function PerformanceTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── CSV download ────────────────────────────────────────────────────────────
-  const downloadCSV = () => {
+  // ── Excel download ───────────────────────────────────────────────────────────
+  const downloadExcel = async () => {
     if (!data?.employees?.length) return;
     const { employees, targets } = data;
-    const header = [
+    const periodLabel = `${MONTHS[month - 1]} ${year}`;
+    const title = `Employee Performance — ${periodLabel}`;
+
+    const headers = [
       'Employee', 'Code', 'Role',
-      'Orders Completed', `Order Target (${targets.order_threshold})`, 'Order %',
-      'Revenue (₹)', `Revenue Target (₹${Number(targets.revenue_target).toLocaleString('en-IN')})`, 'Revenue %',
+      'Orders Completed', 'Order Target', 'Order %',
+      'Revenue (₹)', 'Revenue Target (₹)', 'Revenue %',
       'Incentive Earned (₹)', 'Threshold Met',
     ];
-    const rows = employees.map((e) => [
-      e.employee_name, e.employee_code, e.role || '—',
-      e.service_count, targets.order_threshold, `${e.order_pct}%`,
-      Number(e.revenue).toFixed(2), Number(targets.revenue_target).toFixed(2), `${e.revenue_pct}%`,
-      Number(e.incentive_earned).toFixed(2), e.threshold_met ? 'Yes' : 'No',
+    const dataRows = employees.map((e) => [
+      e.employee_name,
+      e.employee_code,
+      e.role || '',
+      e.service_count,
+      targets.order_threshold,
+      `${e.order_pct}%`,
+      Number(e.revenue)              || 0,
+      Number(targets.revenue_target) || 0,
+      `${e.revenue_pct}%`,
+      Number(e.incentive_earned)     || 0,
+      e.threshold_met ? 'Yes' : 'No',
     ]);
-    const csv = [header, ...rows]
-      .map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `performance_${MONTHS[month - 1]}_${year}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const totalsRow = [
+      'TOTAL', '', '',
+      dataRows.reduce((s, r) => s + r[3], 0), '', '',
+      dataRows.reduce((s, r) => s + r[6], 0), '', '',
+      dataRows.reduce((s, r) => s + r[9], 0), '',
+    ];
+    const incentiveDesc = targets.incentive_type === 'fixed'
+      ? `Fixed Rs.${targets.incentive_fixed_amount} per order above threshold`
+      : `${targets.incentive_salary_percent}% of salary`;
+
+    await styledXlsxDownload(`performance-${MONTHS[month - 1]}-${year}.xlsx`, [{
+      name: 'Performance',
+      title,
+      subtitle: `Order Target: ${targets.order_threshold} orders/emp · Revenue Target: Rs.${Number(targets.revenue_target).toLocaleString('en-IN')}/emp · Incentive: ${incentiveDesc}`,
+      headers,
+      rows: dataRows,
+      totals: totalsRow,
+      colWidths: [24, 12, 14, 18, 14, 10, 16, 20, 12, 20, 14],
+    }]);
   };
 
   // ── PDF download ────────────────────────────────────────────────────────────
@@ -206,8 +226,8 @@ export default function PerformanceTab() {
               <ChevronRight size={16} />
             </button>
           </div>
-          <Button variant="secondary" onClick={downloadCSV} className="flex items-center gap-1.5">
-            <Download size={14} /> CSV
+          <Button variant="secondary" onClick={downloadExcel} className="flex items-center gap-1.5">
+            <Download size={14} /> Excel
           </Button>
           <Button variant="secondary" onClick={downloadPDF} className="flex items-center gap-1.5">
             <Download size={14} /> PDF

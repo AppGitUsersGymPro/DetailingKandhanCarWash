@@ -4,7 +4,7 @@ import {
   Wallet, CreditCard, Banknote, ArrowUpCircle, ArrowDownCircle,
   CheckCircle2, Clock, Package,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { styledXlsxDownload } from '../../utils/export';
 import {
   ResponsiveContainer,
   PieChart, Pie, Cell, Tooltip as RechartsTip,
@@ -355,65 +355,92 @@ function generateHTML(r) {
 }
 
 /* ─── Excel export ──────────────────────────────────────────────────────────── */
-function exportExcel(r) {
-  const wb = XLSX.utils.book_new();
-  const money = (n) => Number(Number(n || 0).toFixed(2));
+async function exportExcel(r) {
+  const m   = (n) => Number(Number(n || 0).toFixed(2));
+  const gen = `Generated: ${new Date().toLocaleDateString('en-IN')}`;
 
-  // Sheet 1 — Summary
-  const ws1 = XLSX.utils.aoa_to_sheet([
-    ['Daily Closing Report', r.date],
-    [],
-    ['Metric', 'Value'],
-    ['Total Billed (₹)',     money(r.summary.total_billed)],
-    ['Total Collected (₹)',  money(r.summary.total_collected)],
-    ['Outstanding (₹)',      money(r.summary.outstanding)],
-    ['Vehicles Serviced',    r.summary.vehicles_serviced],
+  const payData  = r.payment_breakdown.map(p => [PAYMENT_LABEL[p.method] || p.method, m(p.amount), p.count]);
+  const svcData  = r.service_revenue.map(s => {
+    const pct = Number(s.billed) > 0 ? Math.round((Number(s.collected) / Number(s.billed)) * 100) : 0;
+    return [s.service_name, s.jobs, m(s.billed), m(s.collected), m(s.outstanding), `${pct}%`];
+  });
+  const pendData = r.pending_sales.map(p => [p.job_card_number, p.customer, p.vehicle, p.services, m(p.total), m(p.paid), m(p.outstanding)]);
+  const expData  = r.cash_expenses.items.map(e => [e.description, e.category, m(e.amount)]);
+
+  await styledXlsxDownload(`daily-report-${r.date}.xlsx`, [
+    {
+      name: 'Summary',
+      title: `Daily Closing Report — ${r.date}`,
+      subtitle: gen,
+      headers: ['Metric', 'Value'],
+      rows: [
+        ['Total Billed (₹)',    m(r.summary.total_billed)],
+        ['Total Collected (₹)', m(r.summary.total_collected)],
+        ['Outstanding (₹)',     m(r.summary.outstanding)],
+        ['Vehicles Serviced',   r.summary.vehicles_serviced],
+      ],
+      colWidths: [26, 18],
+    },
+    {
+      name: 'Payment Breakdown',
+      title: 'Payment Mode Breakdown',
+      subtitle: gen,
+      headers: ['Payment Method', 'Amount (₹)', 'Transactions'],
+      rows: payData,
+      totals: ['TOTAL', payData.reduce((s, d) => s + d[1], 0), payData.reduce((s, d) => s + d[2], 0)],
+      colWidths: [22, 16, 14],
+    },
+    {
+      name: 'Service Revenue',
+      title: 'Service Revenue Breakdown',
+      subtitle: gen,
+      headers: ['Service', 'Jobs', 'Billed (₹)', 'Collected (₹)', 'Outstanding (₹)', 'Collection %'],
+      rows: svcData,
+      totals: ['TOTAL',
+        svcData.reduce((s, d) => s + d[1], 0),
+        svcData.reduce((s, d) => s + d[2], 0),
+        svcData.reduce((s, d) => s + d[3], 0),
+        svcData.reduce((s, d) => s + d[4], 0),
+        '',
+      ],
+      colWidths: [28, 8, 16, 16, 16, 14],
+    },
+    {
+      name: 'Pending Sales',
+      title: 'Pending / Credit Sales',
+      subtitle: gen,
+      headers: ['Job Card #', 'Customer', 'Vehicle', 'Services', 'Total (₹)', 'Paid (₹)', 'Outstanding (₹)'],
+      rows: pendData,
+      totals: pendData.length ? ['TOTAL', '', '', '',
+        pendData.reduce((s, d) => s + d[4], 0),
+        pendData.reduce((s, d) => s + d[5], 0),
+        pendData.reduce((s, d) => s + d[6], 0),
+      ] : undefined,
+      colWidths: [14, 22, 16, 30, 14, 14, 16],
+    },
+    {
+      name: 'Cash Flow',
+      title: 'Cash Flow Statement',
+      subtitle: gen,
+      headers: ['Item', 'Amount (₹)'],
+      rows: [
+        ['Opening Balance',       m(r.cash_flow.opening_balance)],
+        ['(+) Collected Today',   m(r.cash_flow.cash_collected)],
+        ['(-) Expenses Paid Out', m(r.cash_flow.cash_expenses)],
+        ['Closing Balance',       m(r.cash_flow.closing_balance)],
+      ],
+      colWidths: [26, 18],
+    },
+    {
+      name: 'Cash Expenses',
+      title: 'Cash Expenses',
+      subtitle: gen,
+      headers: ['Description', 'Category', 'Amount (₹)'],
+      rows: expData,
+      totals: expData.length ? ['TOTAL', '', expData.reduce((s, d) => s + d[2], 0)] : undefined,
+      colWidths: [34, 18, 14],
+    },
   ]);
-  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
-
-  // Sheet 2 — Payment Breakdown
-  const ws2 = XLSX.utils.aoa_to_sheet([
-    ['Payment Method', 'Amount (₹)', 'Transactions'],
-    ...r.payment_breakdown.map(p => [PAYMENT_LABEL[p.method] || p.method, money(p.amount), p.count]),
-  ]);
-  XLSX.utils.book_append_sheet(wb, ws2, 'Payment Breakdown');
-
-  // Sheet 3 — Service Revenue
-  const ws3 = XLSX.utils.aoa_to_sheet([
-    ['Service', 'Jobs', 'Billed (₹)', 'Collected (₹)', 'Outstanding (₹)', 'Collection %'],
-    ...r.service_revenue.map(s => {
-      const pct = Number(s.billed) > 0
-        ? Math.round((Number(s.collected) / Number(s.billed)) * 100) : 0;
-      return [s.service_name, s.jobs, money(s.billed), money(s.collected), money(s.outstanding), `${pct}%`];
-    }),
-  ]);
-  XLSX.utils.book_append_sheet(wb, ws3, 'Service Revenue');
-
-  // Sheet 4 — Pending Sales
-  const ws4 = XLSX.utils.aoa_to_sheet([
-    ['Job Card #', 'Customer', 'Vehicle', 'Services', 'Total (₹)', 'Paid (₹)', 'Outstanding (₹)'],
-    ...r.pending_sales.map(p => [p.job_card_number, p.customer, p.vehicle, p.services, money(p.total), money(p.paid), money(p.outstanding)]),
-  ]);
-  XLSX.utils.book_append_sheet(wb, ws4, 'Pending Sales');
-
-  // Sheet 5 — Cash Flow
-  const ws5 = XLSX.utils.aoa_to_sheet([
-    ['Item', 'Amount (₹)'],
-    ['Opening Cash Balance',  money(r.cash_flow.opening_balance)],
-    ['(+) Cash Collected',    money(r.cash_flow.cash_collected)],
-    ['(-) Cash Expenses',     money(r.cash_flow.cash_expenses)],
-    ['Closing Cash Balance',  money(r.cash_flow.closing_balance)],
-  ]);
-  XLSX.utils.book_append_sheet(wb, ws5, 'Cash Flow');
-
-  // Sheet 6 — Expenses
-  const ws6 = XLSX.utils.aoa_to_sheet([
-    ['Description', 'Category', 'Amount (₹)'],
-    ...r.cash_expenses.items.map(e => [e.description, e.category, money(e.amount)]),
-  ]);
-  XLSX.utils.book_append_sheet(wb, ws6, 'Cash Expenses');
-
-  XLSX.writeFile(wb, `daily-report-${r.date}.xlsx`);
 }
 
 /* ─── Main component ────────────────────────────────────────────────────────── */

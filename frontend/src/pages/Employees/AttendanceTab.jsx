@@ -1025,7 +1025,17 @@ function MarkDayModal({ modal, empId, onClose, onSaved }) {
     setErrors({});
   }, [modal]); // eslint-disable-line
 
-  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+  const set = (key) => (e) => {
+    const value = e.target.value;
+    setForm((f) => {
+      const next = { ...f, [key]: value };
+      if (key === 'status' && ['absent', 'leave'].includes(value)) {
+        next.check_in = '';
+        next.check_out = '';
+      }
+      return next;
+    });
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -1109,14 +1119,16 @@ function MarkDayModal({ modal, empId, onClose, onSaved }) {
           </span>
         </Field>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={`Check-in${needsCheckIn ? ' *' : ''}`} error={errors.check_in}>
-            <Input type="time" value={form.check_in} onChange={set('check_in')} />
-          </Field>
-          <Field label="Check-out">
-            <Input type="time" value={form.check_out} onChange={set('check_out')} />
-          </Field>
-        </div>
+        {!['absent', 'leave'].includes(form.status) && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label={`Check-in${needsCheckIn ? ' *' : ''}`} error={errors.check_in}>
+              <Input type="time" value={form.check_in} onChange={set('check_in')} />
+            </Field>
+            <Field label="Check-out">
+              <Input type="time" value={form.check_out} onChange={set('check_out')} />
+            </Field>
+          </div>
+        )}
 
         <Field label="Notes (optional)">
           <Input placeholder="Any remarks about this day…" value={form.notes} onChange={set('notes')} />

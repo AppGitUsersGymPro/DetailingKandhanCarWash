@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Users, Car, Search, Pencil, Trash2, Filter, BarChart2, Download, ChevronLeft, ChevronRight, Warehouse } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { styledXlsxDownload } from '../../utils/export';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -850,25 +850,39 @@ function CustomerReportTable() {
   const safePage   = Math.min(page, totalPages);
   const pageRows   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const downloadExcel = () => {
-    const rows = filtered.map((r, i) => ({
-      '#':               i + 1,
-      'Customer Name':   r.customer_name,
-      'Phone':           r.phone_number,
-      'Email':           r.email || '—',
-      'Total Visits':    r.total_visits,
-      'Last Visit':      r.last_visit_date || '—',
-      'Total Revenue':   r.total_revenue,
-      'Status':          r.is_active ? 'Active' : 'Inactive',
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Customer Report');
-    // Auto column widths
-    const cols = Object.keys(rows[0] || {}).map(k => ({ wch: Math.max(k.length, 14) }));
-    ws['!cols'] = cols;
-    const rangeSuffix = lastDaysFilter ? `-last${lastDaysFilter}days` : monthFilter ? `-${monthFilter}` : yearFilter ? `-${yearFilter}` : '';
-    XLSX.writeFile(wb, `customer-report${rangeSuffix}${statusFilter ? '-' + statusFilter : ''}.xlsx`);
+  const downloadExcel = async () => {
+    const period = lastDaysFilter ? `Last ${lastDaysFilter} Days`
+                 : monthFilter    ? monthFilter
+                 : yearFilter     ? `Year ${yearFilter}`
+                 : 'All Time';
+    const title = `Customer Activity Report — ${period}`;
+
+    const headers = ['#', 'Customer Name', 'Phone', 'Email', 'Total Visits', 'Last Visit', 'Total Revenue (₹)', 'Status'];
+    const dataRows = filtered.map((r, i) => [
+      i + 1,
+      r.customer_name,
+      r.phone_number,
+      r.email || '',
+      r.total_visits,
+      r.last_visit_date || '',
+      Number(r.total_revenue) || 0,
+      r.is_active ? 'Active' : 'Inactive',
+    ]);
+
+    const totalVisits  = dataRows.reduce((s, r) => s + (r[4] || 0), 0);
+    const totalRevenue = dataRows.reduce((s, r) => s + (r[6] || 0), 0);
+    const totalsRow    = ['', 'TOTAL', '', '', totalVisits, '', totalRevenue, ''];
+    const rangeSuffix  = lastDaysFilter ? `-last${lastDaysFilter}days` : monthFilter ? `-${monthFilter}` : yearFilter ? `-${yearFilter}` : '';
+
+    await styledXlsxDownload(`customer-report${rangeSuffix}${statusFilter ? '-' + statusFilter : ''}.xlsx`, [{
+      name: 'Customer Report',
+      title,
+      subtitle: `Generated: ${new Date().toLocaleDateString('en-IN')} · ${filtered.length} customers`,
+      headers,
+      rows: dataRows,
+      totals: totalsRow,
+      colWidths: [6, 28, 16, 26, 14, 14, 20, 10],
+    }]);
   };
 
   return (

@@ -226,9 +226,11 @@ class Attendance(models.Model):
             if co_dt > s_end + ot_buf:
                 self.overtime_minutes = int((co_dt - s_end).total_seconds() / 60)
 
-        # Auto-update status only when check_in is present and status isn't manually locked
-        MANUAL_STATUSES = ('absent', 'half_day', 'leave', 'auto_absent')
-        if self.status not in MANUAL_STATUSES and self.check_in:
+        # Auto-update status from times.
+        # half_day and leave are always manual. absent/auto_absent are overridden when
+        # check_in is provided — a clocked-in employee cannot be absent.
+        FULLY_MANUAL = ('half_day', 'leave')
+        if self.check_in and self.status not in FULLY_MANUAL:
             if self.late_minutes > 0 and self.overtime_minutes > 0:
                 self.status = 'late_overtime'
             elif self.late_minutes > 0:
@@ -237,7 +239,7 @@ class Attendance(models.Model):
                 self.status = 'overtime'
             else:
                 self.status = 'present'
-        elif not self.check_in and self.status not in MANUAL_STATUSES:
+        elif not self.check_in and self.status not in ('absent', 'auto_absent', 'half_day', 'leave'):
             # check_in was cleared — reset to neutral so stale computed status doesn't linger
             self.status = 'present'
 
