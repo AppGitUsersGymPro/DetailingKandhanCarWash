@@ -599,6 +599,7 @@ class SalesOrderCreateSerializer(serializers.Serializer):
     payment_method = serializers.CharField(default='cash')
     notes          = serializers.CharField(allow_blank=True, required=False, default='')
     items          = serializers.ListField(child=serializers.DictField(), allow_empty=False)
+    total_amount   = serializers.DecimalField(max_digits = 10, decimal_places=2)
 
     def validate(self, attrs):
         validated_items = []
@@ -644,6 +645,7 @@ class SalesOrderCreateSerializer(serializers.Serializer):
             sale_date=validated_data['sale_date'],
             payment_method=validated_data.get('payment_method', 'cash'),
             notes=validated_data.get('notes', ''),
+            total_amount = validated_data.get('total_amount',0),
         )
         for it in items:
             SalesOrderItem.objects.create(

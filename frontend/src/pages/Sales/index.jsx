@@ -4,23 +4,23 @@ import {
   TrendingUp, TrendingDown, Users, IndianRupee, Package,
   X, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import PageHeader   from '../../components/PageHeader';
-import Button       from '../../components/Button';
-import Loading      from '../../components/Loading';
-import Modal        from '../../components/Modal';
+import PageHeader from '../../components/PageHeader';
+import Button from '../../components/Button';
+import Loading from '../../components/Loading';
+import Modal from '../../components/Modal';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import { Field, Input, Select } from '../../components/Field';
-import { useToast }  from '../../components/Toast';
+import { useToast } from '../../components/Toast';
 import { getSalesAnalytics, createSalesOrder, deleteSalesOrder, lookupCustomer } from '../../api/sales';
 import { listSalesInventory } from '../../api/jobcards';
-import { extractError }       from '../../api/axios';
+import { extractError } from '../../api/axios';
 import { downloadSalesInvoice } from '../../utils/salesInvoice';
 import UpiQr from '../../components/UpiQr';
 
-const fmt  = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtD = (s) => s ? new Date(s + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 const METHOD_LABEL = { cash: 'Cash', upi: 'UPI', card: 'Card', netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other' };
-const localToday   = () => new Date().toISOString().slice(0, 10);
+const localToday = () => new Date().toISOString().slice(0, 10);
 
 // ─── Tiny horizontal-bar chart ────────────────────────────────────────────────
 function BarChart({ rows, valueKey = 'revenue', labelKey = 'name', color = '#38bdf8', title }) {
@@ -73,12 +73,12 @@ function KpiCard({ icon: Icon, label, value, color = 'text-accent' }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function SalesPage() {
   const toast = useToast();
-  const [loading, setLoading]       = useState(true);
-  const [analytics, setAnalytics]   = useState(null);
-  const [feed, setFeed]             = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [analytics, setAnalytics] = useState(null);
+  const [feed, setFeed] = useState([]);
   const [newSaleOpen, setNewSaleOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);   // { id, order_number }
-  const [search, setSearch]         = useState('');
+  const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');     // '' | 'standalone' | 'job_card'
   const [expandedRow, setExpandedRow] = useState(null);
 
@@ -99,13 +99,13 @@ export default function SalesPage() {
 
   const filtered = useMemo(() => {
     let list = feed;
-    if (typeFilter)    list = list.filter(r => r.type === typeFilter);
+    if (typeFilter) list = list.filter(r => r.type === typeFilter);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(r =>
-        (r.customer_name  || '').toLowerCase().includes(q) ||
-        (r.phone_number   || '').toLowerCase().includes(q) ||
-        (r.order_number   || '').toLowerCase().includes(q) ||
+        (r.customer_name || '').toLowerCase().includes(q) ||
+        (r.phone_number || '').toLowerCase().includes(q) ||
+        (r.order_number || '').toLowerCase().includes(q) ||
         (r.vehicle_number || '').toLowerCase().includes(q) ||
         (r.items || []).some(it => (it.product_name || '').toLowerCase().includes(q))
       );
@@ -144,10 +144,10 @@ export default function SalesPage() {
         <>
           {/* ── KPI row ── */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-            <KpiCard icon={IndianRupee}  label="Total Sales Revenue"  value={fmt(a.total_revenue)}  color="text-emerald-400" />
-            <KpiCard icon={IndianRupee}  label="Today's Revenue"      value={fmt(a.today_revenue)}  color="text-yellow-400" />
-            <KpiCard icon={ShoppingCart} label="Direct Sales"         value={a.standalone_count || 0} color="text-blue-400" />
-            <KpiCard icon={Package}      label="Via Job Cards"        value={a.jc_count || 0}        color="text-violet-400" />
+            <KpiCard icon={IndianRupee} label="Total Sales Revenue" value={fmt(a.total_revenue)} color="text-emerald-400" />
+            <KpiCard icon={IndianRupee} label="Today's Revenue" value={fmt(a.today_revenue)} color="text-yellow-400" />
+            <KpiCard icon={ShoppingCart} label="Direct Sales" value={a.standalone_count || 0} color="text-blue-400" />
+            <KpiCard icon={Package} label="Via Job Cards" value={a.jc_count || 0} color="text-violet-400" />
           </div>
 
           {/* ── Charts row ── */}
@@ -178,8 +178,8 @@ export default function SalesPage() {
                 <div className="text-sm font-semibold text-gray-100 mb-3">Sales by Source</div>
                 {(() => {
                   const sbt = a.sales_by_type || {};
-                  const sa  = sbt.standalone || {};
-                  const jc  = sbt.job_card   || {};
+                  const sa = sbt.standalone || {};
+                  const jc = sbt.job_card || {};
                   const tot = Number(sa.revenue || 0) + Number(jc.revenue || 0);
                   const saP = tot > 0 ? (Number(sa.revenue || 0) / tot * 100).toFixed(0) : 0;
                   const jcP = tot > 0 ? (Number(jc.revenue || 0) / tot * 100).toFixed(0) : 0;
@@ -217,19 +217,19 @@ export default function SalesPage() {
                 {(a.top_customers || []).length === 0
                   ? <div className="text-xs text-gray-500">No data yet</div>
                   : <div className="space-y-2">
-                      {(a.top_customers || []).map((c, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs">
-                          <div>
-                            <div className="text-gray-200">{c.name}</div>
-                            {c.phone && <div className="text-gray-500">{c.phone}</div>}
-                          </div>
-                          <div className="text-right">
-                            <div className="text-emerald-400 font-semibold">{fmt(c.spent)}</div>
-                            <div className="text-gray-500">{c.count} order{c.count !== 1 ? 's' : ''}</div>
-                          </div>
+                    {(a.top_customers || []).map((c, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <div>
+                          <div className="text-gray-200">{c.name}</div>
+                          {c.phone && <div className="text-gray-500">{c.phone}</div>}
                         </div>
-                      ))}
-                    </div>
+                        <div className="text-right">
+                          <div className="text-emerald-400 font-semibold">{fmt(c.spent)}</div>
+                          <div className="text-gray-500">{c.count} order{c.count !== 1 ? 's' : ''}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 }
               </div>
             </div>
@@ -249,19 +249,18 @@ export default function SalesPage() {
               </div>
               <div className="flex items-center gap-1">
                 {[
-                  { v: '',           label: 'All' },
+                  { v: '', label: 'All' },
                   { v: 'standalone', label: 'Direct' },
-                  { v: 'job_card',   label: 'Job Card' },
+                  { v: 'job_card', label: 'Job Card' },
                 ].map(({ v, label }) => (
                   <button
                     key={v}
                     type="button"
                     onClick={() => setTypeFilter(v)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                      typeFilter === v
-                        ? 'bg-accent text-white'
-                        : 'text-gray-400 hover:text-gray-200 hover:bg-bg-hover border border-transparent'
-                    }`}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${typeFilter === v
+                      ? 'bg-accent text-white'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-bg-hover border border-transparent'
+                      }`}
                   >
                     {label}
                   </button>
@@ -421,23 +420,23 @@ function NewSaleModal({ open, onClose, onSaved }) {
   const toast = useToast();
 
   // Customer state
-  const [phone, setPhone]           = useState('');
-  const [looking, setLooking]       = useState(false);
+  const [phone, setPhone] = useState('');
+  const [looking, setLooking] = useState(false);
   const [customerId, setCustomerId] = useState(null);
   const [customerName, setCustomerName] = useState('');
   const [customerFound, setCustomerFound] = useState(null); // true | false | null
 
   // Items state
-  const [inventory, setInventory]   = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [invLoading, setInvLoading] = useState(false);
-  const [invSearch, setInvSearch]   = useState('');
+  const [invSearch, setInvSearch] = useState('');
   const [quantities, setQuantities] = useState({});
-  const [prices, setPrices]         = useState({});
+  const [prices, setPrices] = useState({});
 
   // Sale state
-  const [saleDate, setSaleDate]     = useState(localToday());
-  const [payMethod, setPayMethod]   = useState('cash');
-  const [notes, setNotes]           = useState('');
+  const [saleDate, setSaleDate] = useState(localToday());
+  const [payMethod, setPayMethod] = useState('cash');
+  const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -499,38 +498,39 @@ function NewSaleModal({ open, onClose, onSaved }) {
     setSubmitting(true);
     try {
       const order = await createSalesOrder({
-        customer_id:    customerId,
-        customer_name:  customerName.trim(),
-        phone_number:   phone.trim(),
-        sale_date:      saleDate,
+        customer_id: customerId,
+        customer_name: customerName.trim(),
+        phone_number: phone.trim(),
+        sale_date: saleDate,
         payment_method: payMethod,
-        notes:          notes.trim(),
+        notes: notes.trim(),
         items: selectedItems.map(i => ({
           inventory_id: i.id,
-          quantity:     Number(quantities[i.id]),
-          unit_price:   Number(prices[i.id] !== undefined ? prices[i.id] : (i.selling_price || 0)),
+          quantity: Number(quantities[i.id]),
+          unit_price: Number(prices[i.id] !== undefined ? prices[i.id] : (i.selling_price || 0)),
         })),
+        total_amount: grandTotal,
       });
       toast.success(`Sale ${order.order_number} created`);
       // Build a feed-compatible record for immediate invoice download
       const feedRecord = {
-        type:           'standalone',
-        id:             order.id,
-        order_number:   order.order_number,
-        date:           order.sale_date,
-        customer_name:  order.customer_name,
-        phone_number:   order.phone_number,
+        type: 'standalone',
+        id: order.id,
+        order_number: order.order_number,
+        date: order.sale_date,
+        customer_name: order.customer_name,
+        phone_number: order.phone_number,
         vehicle_number: null,
         payment_method: order.payment_method,
-        notes:          order.notes,
-        items:          (order.items || []).map(it => ({
+        notes: order.notes,
+        items: (order.items || []).map(it => ({
           product_name: it.product_name,
-          brand:        it.brand,
-          quantity:     it.quantity,
-          unit_price:   it.unit_price,
-          unit:         it.unit,
-          unit_amount:  it.unit_amount,
-          line_total:   it.line_total,
+          brand: it.brand,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          unit: it.unit,
+          unit_amount: it.unit_amount,
+          line_total: it.line_total,
         })),
         total_amount: order.total_amount,
       };
@@ -602,7 +602,7 @@ function NewSaleModal({ open, onClose, onSaved }) {
           </Field>
           <Field label="Payment Method">
             <Select value={payMethod} onChange={e => setPayMethod(e.target.value)}>
-              {[['cash','Cash'],['upi','UPI'],['card','Card'],['netbanking','Net Banking'],['cheque','Cheque'],['other','Other']].map(([v,l]) => (
+              {[['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card'], ['netbanking', 'Net Banking'], ['cheque', 'Cheque'], ['other', 'Other']].map(([v, l]) => (
                 <option key={v} value={v}>{l}</option>
               ))}
             </Select>
@@ -632,14 +632,13 @@ function NewSaleModal({ open, onClose, onSaved }) {
             <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
               {filteredInv.map(item => {
                 const outOfStock = item.quantity_available <= 0;
-                const qty   = quantities[item.id] || '';
+                const qty = quantities[item.id] || '';
                 const price = prices[item.id] !== undefined ? prices[item.id] : (item.selling_price || '');
                 return (
                   <div
                     key={item.id}
-                    className={`flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
-                      outOfStock ? 'border-border opacity-40' : 'border-border hover:border-accent/30'
-                    }`}
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${outOfStock ? 'border-border opacity-40' : 'border-border hover:border-accent/30'
+                      }`}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-gray-200 truncate">{item.product_name}</div>

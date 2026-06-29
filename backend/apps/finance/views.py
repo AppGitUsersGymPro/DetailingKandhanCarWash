@@ -365,7 +365,7 @@ class FinanceIncomeView(APIView):
                 Q(items__inventory__product__product_name__icontains=search)
             )
         for so in sales_qs:
-            amount = sum(item.quantity * item.unit_price for item in so.items.all())
+            #amount = sum(item.quantity * item.unit_price for item in so.items.all())
             results.append({
                 'id':              f'sales-{so.id}',
                 'date':            so.sale_date.isoformat(),
@@ -373,11 +373,11 @@ class FinanceIncomeView(APIView):
                 'customer_name':   so.customer_name,          # fill in if SalesOrder has a customer link
                 'vehicle_number':  '',
                 'services':        ', '.join(i.inventory.product.product_name for i in so.items.all()),
-                'base_amount':     str(amount),
+                'base_amount':     str(so.total_amount),
                 'gst_percent':     '0',
                 'gst_amount':      '0',
-                'total_amount':    str(amount),
-                'paid_amount':     str(amount),  # sales are presumably paid at time of sale
+                'total_amount':    str(so.total_amount),
+                'paid_amount':     str(so.total_amount),  # sales are presumably paid at time of sale
                 'base_to_collect': '0',
                 'gst_to_collect':  '0',
                 'outstanding':     '0',
