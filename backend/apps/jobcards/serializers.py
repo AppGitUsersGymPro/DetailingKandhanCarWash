@@ -175,6 +175,7 @@ class JobCardSerializer(serializers.ModelSerializer):
         return True
 
 
+
 class CustomerInputSerializer(serializers.Serializer):
     is_new        = serializers.BooleanField()
     id            = serializers.IntegerField(required=False, allow_null=True)
@@ -221,6 +222,7 @@ class JobCardCoreSerializer(serializers.Serializer):
     )
     employee         = serializers.IntegerField(required=False, allow_null=True)
     vehicle_sub_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    total_amount = serializers.DecimalField(max_digits = 10, decimal_places = 2)
 
 
 class FullJobCardCreateSerializer(serializers.Serializer):

@@ -4,11 +4,12 @@ from datetime import timedelta, date as _date
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Count
+from apps.jobcards.utils import recalculate_total
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-
+from django.db import connection
 logger = logging.getLogger(__name__)
 from .models import JobCard, JobCardService, JobCardEmployee, JobCardPayment, JobCardProduct, JobCardProductUsage, JobCardSalesProduct, SalesOrder
 from apps.customers.models import Customer, CustomerAsset
@@ -31,7 +32,7 @@ from .serializers import (
 )
 from apps.services.models import ServiceProduct
 from apps.vendors.models import Inventory
-
+import time
 
 # ─── JobCard ──────────────────────────────────────────
 
@@ -67,6 +68,7 @@ class FullJobCardCreateView(APIView):
 
 class JobCardListCreateView(APIView):
     def get(self, request):
+        start = time.time()
         qs = JobCard.objects.all()
         job_status  = request.query_params.get('status')
         date        = request.query_params.get('date')
@@ -98,6 +100,7 @@ class JobCardListCreateView(APIView):
         elif owner_type == 'garage':
             qs = qs.filter(garage_owner__isnull=False)
         serializer = JobCardSerializer(qs, many=True)
+        print(f"Serialization took: {time.time() - start:.3f} seconds, queries: {len(connection.queries)}")
         return Response(serializer.data)
 
     # def post(self, request):
@@ -131,7 +134,7 @@ class JobCardDetailView(APIView):
 
     def put(self, request, pk):
         jobcard = self.get_object(pk)
-
+        
         if not jobcard:
             return Response(
                 {'error': 'Job card not found'},
@@ -143,8 +146,7 @@ class JobCardDetailView(APIView):
         serializer = JobCardSerializer(jobcard, data=request.data, partial=True)
         if serializer.is_valid():
             updated_jobcard = serializer.save()
-            print(serializer.data)
-
+            print(updated_jobcard)
             if old_status != 'COMPLETED' and updated_jobcard.job_card_status == 'COMPLETED':
                 updated_jobcard.vehicle_exit_time = timezone.now()
                 updated_jobcard.save()
@@ -893,7 +895,9 @@ class JobCardSalesProductListCreateView(APIView):
             context={'job_card': job_card},
         )
         serializer.is_valid(raise_exception=True)
+        print(serializer)
         sp = serializer.save()
+        recalculate_total(job_card)
         return Response(JobCardSalesProductSerializer(sp).data, status=status.HTTP_201_CREATED)
 
 

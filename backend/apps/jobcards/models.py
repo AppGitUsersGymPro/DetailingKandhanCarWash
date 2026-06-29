@@ -26,9 +26,10 @@ class JobCard(models.Model):
     job_card_status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='IN_PROGRESS')
     complaints = models.TextField(blank=True, null=True)
     gst_percent = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal('18.00'))
-    employee         = models.ForeignKey('employees.Employee', on_delete=models.PROTECT, blank=True, null=True)
+    employee         = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
     vehicle_sub_type = models.CharField(max_length=20, choices=VEHICLE_SUB_TYPE_CHOICES, blank=True, null=True)
     garage_owner     = models.ForeignKey('customers.GarageOwner', on_delete=models.PROTECT, blank=True, null=True, related_name='job_cards')
+    total_amount = models.DecimalField(max_digits = 10, decimal_places = 2, blank = True , null = True)
 
     def save(self, *args, **kwargs):
         if not self.job_card_number:

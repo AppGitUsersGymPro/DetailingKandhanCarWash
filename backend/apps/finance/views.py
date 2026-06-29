@@ -290,6 +290,7 @@ class FinanceIncomeView(APIView):
             'job_card__job_card_services__service',
         )
 
+
         if search:
             pay_qs = pay_qs.filter(
                 Q(job_card__job_card_number__icontains=search) |
@@ -354,6 +355,38 @@ class FinanceIncomeView(APIView):
                 'payment_method':    p.payment_method,
                 'category':          'Job Card',
             })
+        sales_qs = SalesOrder.objects.filter(
+            sale_date__year = year,
+            sale_date__month = month,
+        ).prefetch_related('items__inventory__product')
+
+        if search:
+            sales_qs = sales_qs.filter(
+                Q(items__inventory__product__product_name__icontains=search)
+            )
+        for so in sales_qs:
+            amount = sum(item.quantity * item.unit_price for item in so.items.all())
+            results.append({
+                'id':              f'sales-{so.id}',
+                'date':            so.sale_date.isoformat(),
+                'job_card_number': so.order_number,          # not tied to a job card
+                'customer_name':   so.customer_name,          # fill in if SalesOrder has a customer link
+                'vehicle_number':  '',
+                'services':        ', '.join(i.inventory.product.product_name for i in so.items.all()),
+                'base_amount':     str(amount),
+                'gst_percent':     '0',
+                'gst_amount':      '0',
+                'total_amount':    str(amount),
+                'paid_amount':     str(amount),  # sales are presumably paid at time of sale
+                'base_to_collect': '0',
+                'gst_to_collect':  '0',
+                'outstanding':     '0',
+                'payment_status':  'paid',
+                'payment_method':  '',           # fill in if SalesOrder tracks this
+                'category':        'Sales Product',
+            })
+        
+        results.sort(key=lambda x:x['date'], reverse=True)
 
         return Response(results)
 
