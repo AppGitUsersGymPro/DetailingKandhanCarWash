@@ -26,6 +26,7 @@ import Kiosk from './pages/Kiosk';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
 import UserGuide from './pages/UserGuide';
+import PublicInvoiceView from './pages/Public/InvoiceView';
 
 function AdminOnly({ children }) {
   const role = tokens.getRole();
@@ -39,6 +40,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/invoice/view/:token" element={<PublicInvoiceView />} />
           <Route element={<RequireAuth><Layout /></RequireAuth>}>
             <Route index element={<Dashboard />} />
 

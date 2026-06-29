@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 from django.db import models
 from django.utils import timezone
@@ -30,6 +31,7 @@ class JobCard(models.Model):
     vehicle_sub_type = models.CharField(max_length=20, choices=VEHICLE_SUB_TYPE_CHOICES, blank=True, null=True)
     garage_owner     = models.ForeignKey('customers.GarageOwner', on_delete=models.PROTECT, blank=True, null=True, related_name='job_cards')
     total_amount = models.DecimalField(max_digits = 10, decimal_places = 2, blank = True , null = True)
+    share_token  = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     def save(self, *args, **kwargs):
         if not self.job_card_number:

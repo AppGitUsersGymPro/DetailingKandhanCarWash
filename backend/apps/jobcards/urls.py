@@ -19,6 +19,7 @@ from .views import (
     SalesAnalyticsView,
     GarageJobCardGroupView,
     GaragePaymentView,
+    JobCardPublicInvoiceView,
 )
 
 urlpatterns = [
@@ -67,4 +68,7 @@ urlpatterns = [
     # Garage groups
     path('garage-groups/',   GarageJobCardGroupView.as_view(), name='garage-groups'),
     path('garage-payments/', GaragePaymentView.as_view(),      name='garage-payments'),
+
+    # Public invoice (no auth — for WhatsApp share links)
+    path('public/<uuid:share_token>/', JobCardPublicInvoiceView.as_view(), name='jobcard-public-invoice'),
 ]

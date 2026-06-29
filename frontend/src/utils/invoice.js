@@ -20,7 +20,7 @@ const METHOD = {
   netbanking: 'Net Banking', cheque: 'Cheque', other: 'Other',
 };
 
-function buildInvoiceHTML(jobCard) {
+export function buildInvoiceHTML(jobCard) {
   const services      = jobCard.job_card_services || [];
   const salesProducts = jobCard.sales_products    || [];
   const payments      = jobCard.payments          || [];

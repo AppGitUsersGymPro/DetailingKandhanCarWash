@@ -8,6 +8,7 @@ from apps.jobcards.utils import recalculate_total
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.db import connection
 logger = logging.getLogger(__name__)
@@ -1326,3 +1327,15 @@ class GaragePaymentView(APIView):
             'total_applied':     str(total_applied.quantize(Decimal('0.01'))),
             'remaining':         str(remaining.quantize(Decimal('0.01'))),
         }, status=status.HTTP_201_CREATED)
+
+# ─── Public Invoice View (no auth) ────────────────────────────────────────────
+class JobCardPublicInvoiceView(APIView):
+    permission_classes    = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, share_token):
+        try:
+            jobcard = JobCard.objects.get(share_token=share_token)
+        except JobCard.DoesNotExist:
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(JobCardSerializer(jobcard).data)

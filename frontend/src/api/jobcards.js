@@ -1,4 +1,8 @@
+import axios from 'axios';
 import api from './axios';
+
+const publicHttp = axios.create({ baseURL: import.meta.env.VITE_API_URL });
+export const getPublicJobCard = (token) => publicHttp.get(`jobcards/public/${token}/`).then(r => r.data);
 
 export const listJobCards = (params) => api.get('jobcards/', { params }).then(r => r.data);
 export const createJobCard = (data) => api.post('jobcards/', data).then(r => r.data);
