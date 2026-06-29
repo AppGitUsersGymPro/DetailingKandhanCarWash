@@ -971,12 +971,19 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
         <>
           <Button variant="secondary" onClick={onClose}>Close</Button>
           {(showDownloadBtn || payStatus === 'paid') && payments.length > 0 && jobCard && (
-            <Button
-              variant="secondary"
-              onClick={() => triggerComprehensiveDownload({ payments, jobCard, totalAmount: total })}
-            >
-              <Download size={14} /> Download Bill
-            </Button>
+            <>
+              {jobCard.phone_number && (
+                <Button variant="secondary" onClick={() => openWhatsAppForJobCard(jobCard, toast)} className="text-green-400 hover:text-green-300">
+                  <WaIcon /> WhatsApp
+                </Button>
+              )}
+              <Button
+                variant="secondary"
+                onClick={() => triggerComprehensiveDownload({ payments, jobCard, totalAmount: total })}
+              >
+                <Download size={14} /> Download Bill
+              </Button>
+            </>
           )}
           {payStatus !== 'paid' && (
             <Button variant="success" onClick={submit} loading={submitting}>Record Payment</Button>
@@ -1066,13 +1073,24 @@ export function AddPaymentModal({ open, onClose, jobCardId, onAdded, outstanding
             <div className="text-xs text-emerald-300 font-medium">
               ✓ Payment recorded — bill ready to download
             </div>
-            <button
-              type="button"
-              onClick={() => triggerComprehensiveDownload({ payments, jobCard, totalAmount: total })}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/50 border border-emerald-600/60 text-emerald-200 text-xs font-semibold hover:bg-emerald-700/50 transition-colors"
-            >
-              <Download size={12} /> Download Bill
-            </button>
+            <div className="flex items-center gap-2">
+              {jobCard.phone_number && (
+                <button
+                  type="button"
+                  onClick={() => openWhatsAppForJobCard(jobCard, toast)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-800/50 border border-green-600/60 text-green-200 text-xs font-semibold hover:bg-green-700/50 transition-colors"
+                >
+                  <WaIcon /> WhatsApp
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => triggerComprehensiveDownload({ payments, jobCard, totalAmount: total })}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/50 border border-emerald-600/60 text-emerald-200 text-xs font-semibold hover:bg-emerald-700/50 transition-colors"
+              >
+                <Download size={12} /> Download Bill
+              </button>
+            </div>
           </div>
         )}
 
