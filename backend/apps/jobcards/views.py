@@ -72,7 +72,7 @@ class JobCardListCreateView(APIView):
         start = time.time()
         qs = JobCard.objects.all()
         job_status  = request.query_params.get('status')
-        date        = request.query_params.get('date')
+        date_param        = request.query_params.get('date')
         employee    = request.query_params.get('employee')
         company     = request.query_params.get('company')
         model       = request.query_params.get('model')
@@ -80,26 +80,29 @@ class JobCardListCreateView(APIView):
         owner_type  = request.query_params.get('owner_type')  # 'customer' | 'garage'
         date_from   = request.query_params.get('date_from')
         date_to     = request.query_params.get('date_to')
-        if job_status:
-            qs = qs.filter(job_card_status=job_status)
-        if date:
-            qs = qs.filter(job_card_date=date)
-        if date_from:
-            qs = qs.filter(job_card_date__gte=date_from)
-        if date_to:
-            qs = qs.filter(job_card_date__lte=date_to)
-        if employee:
-            qs = qs.filter(employee_id=employee)
-        if company:
-            qs = qs.filter(customer_asset__vehicle_company__icontains=company)
-        if model:
-            qs = qs.filter(customer_asset__vehicle_model__icontains=model)
-        if vehicle_id:
-            qs = qs.filter(customer_asset_id=vehicle_id)
-        if owner_type == 'customer':
-            qs = qs.filter(garage_owner__isnull=True)
-        elif owner_type == 'garage':
-            qs = qs.filter(garage_owner__isnull=False)
+        if request.GET:
+            if job_status:
+                qs = qs.filter(job_card_status=job_status)
+            if date_param:
+                qs = qs.filter(job_card_date=date_param)
+            if date_from:
+                qs = qs.filter(job_card_date__gte=date_from)
+            if date_to:
+                qs = qs.filter(job_card_date__lte=date_to)
+            if employee:
+                qs = qs.filter(employee_id=employee)
+            if company:
+                qs = qs.filter(customer_asset__vehicle_company__icontains=company)
+            if model:
+                qs = qs.filter(customer_asset__vehicle_model__icontains=model)
+            if vehicle_id:
+                qs = qs.filter(customer_asset_id=vehicle_id)
+            if owner_type == 'customer':
+                qs = qs.filter(garage_owner__isnull=True)
+            elif owner_type == 'garage':
+                qs = qs.filter(garage_owner__isnull=False)
+        else:
+            qs = qs.filter(job_card_date__lte=_date.today() , job_card_date__gte = _date.today()- timedelta(days =7))
         serializer = JobCardSerializer(qs, many=True)
         print(f"Serialization took: {time.time() - start:.3f} seconds, queries: {len(connection.queries)}")
         return Response(serializer.data)
@@ -473,20 +476,23 @@ class FetchVehicleTypeList(APIView):
         employee   = request.query_params.get('employee')
         job_status = request.query_params.get('status')
         owner_type = request.query_params.get('owner_type')
-        if date:
-            qs = qs.filter(job_card_date=date)
-        if company:
-            qs = qs.filter(customer_asset__vehicle_company__icontains=company)
-        if model:
-            qs = qs.filter(customer_asset__vehicle_model__icontains=model)
-        if employee:
-            qs = qs.filter(employee_id=employee)
-        if job_status:
-            qs = qs.filter(job_card_status=job_status)
-        if owner_type == 'customer':
-            qs = qs.filter(garage_owner__isnull=True)
-        elif owner_type == 'garage':
-            qs = qs.filter(garage_owner__isnull=False)
+        if request.GET:
+            if date:
+                qs = qs.filter(job_card_date=date)
+            if company:
+                qs = qs.filter(customer_asset__vehicle_company__icontains=company)
+            if model:
+                qs = qs.filter(customer_asset__vehicle_model__icontains=model)
+            if employee:
+                qs = qs.filter(employee_id=employee)
+            if job_status:
+                qs = qs.filter(job_card_status=job_status)
+            if owner_type == 'customer':
+                qs = qs.filter(garage_owner__isnull=True)
+            elif owner_type == 'garage':
+                qs = qs.filter(garage_owner__isnull=False)
+        else:
+            qs = qs.filter(job_card_date__lte= _date.today(),job_card_date__gte = _date.today()-timedelta(days = 7))
         serializer = JobCardSerializer(qs, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
@@ -926,15 +932,19 @@ class SalesOrderListCreateView(APIView):
         ).order_by('-sale_date', '-created_at')
         search = request.query_params.get('search', '')
         date   = request.query_params.get('date', '')
-        if search:
-            from django.db.models import Q as DQ
-            qs = qs.filter(
-                DQ(customer_name__icontains=search) |
-                DQ(phone_number__icontains=search) |
-                DQ(order_number__icontains=search)
-            )
-        if date:
-            qs = qs.filter(sale_date=date)
+        if request.GET:
+            if search:
+                from django.db.models import Q as DQ
+                qs = qs.filter(
+                    DQ(customer_name__icontains=search) |
+                    DQ(phone_number__icontains=search) |
+                    DQ(order_number__icontains=search)
+                )
+            if date:
+                qs = qs.filter(sale_date=date)
+        else:
+            print("Execution Success")
+            qs = qs.filter(sale_date__lte = _date.today(), sale_date__gte = _date.today()-timedelta(days=7))
         return Response(SalesOrderSerializer(qs, many=True).data)
 
     def post(self, request):
@@ -974,7 +984,7 @@ class SalesAnalyticsView(APIView):
         standalone_revenue = Decimal('0')
         standalone_count   = 0
 
-        standalone_orders = SalesOrder.objects.prefetch_related('items__inventory__product').order_by('-sale_date', '-created_at')
+        standalone_orders = SalesOrder.objects.prefetch_related('items__inventory__product').order_by('-sale_date', '-created_at').filter(sale_date__lte = _date.today(), sale_date__gte = _date.today()-timedelta(days=7))
         for order in standalone_orders:
             total = sum((it.unit_price * it.quantity for it in order.items.all()), Decimal('0'))
             standalone_revenue += total
@@ -992,9 +1002,11 @@ class SalesAnalyticsView(APIView):
                 standalone_product_map[pkey]['name']      = it.inventory.product.product_name
 
         # ── 2. Job-card sales ─────────────────────────────────────────────
+        start = timezone.now() - timedelta(days=7)
+        end = timezone.now()
         jc_sales = JobCardSalesProduct.objects.select_related(
             'job_card__customer_asset__customer', 'inventory__product'
-        ).all()
+        ).filter(created_at__lte = start , created_at__gte = end)
 
         jc_product_map = defaultdict(lambda: {'quantity': Decimal('0'), 'revenue': Decimal('0'), 'brand': '', 'name': ''})
         jc_customer_map = defaultdict(lambda: {'name': '', 'phone': '', 'spent': Decimal('0'), 'count': 0, 'jc_nos': set()})
