@@ -581,7 +581,8 @@ class SalesOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model  = SalesOrder
         fields = ['id', 'order_number', 'customer', 'customer_name', 'phone_number',
-                  'sale_date', 'payment_method', 'notes', 'created_at', 'items', 'total_amount']
+                  'sale_date', 'payment_method', 'notes', 'created_at', 'items', 'total_amount',
+                  'share_token']
 
     def get_total_amount(self, obj):
         total = sum(

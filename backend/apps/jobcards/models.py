@@ -131,6 +131,7 @@ class SalesOrder(models.Model):
     notes          = models.TextField(blank=True)
     created_at     = models.DateTimeField(auto_now_add=True)
     total_amount   = models.DecimalField(max_digits=10, decimal_places= 2, default = 0.0)
+    share_token    = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     def save(self, *args, **kwargs):
         if not self.order_number:

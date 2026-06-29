@@ -43,3 +43,35 @@ export function openWhatsAppForJobCard(job, toast) {
 
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
+
+export function openWhatsAppForSale(record, toast) {
+  const raw   = (record.phone_number || '').replace(/\D/g, '');
+  const phone = raw.length === 10 ? `91${raw}` : raw;
+  if (!phone) {
+    if (toast) toast.error('No phone number on record for this customer.');
+    return;
+  }
+
+  const total    = Number(record.total_amount || 0);
+  const items    = (record.items || [])
+    .map(it => `  • ${it.product_name} × ${it.quantity}`)
+    .join('\n');
+  const shareUrl = record.share_token
+    ? `${window.location.origin}/sales/view/${record.share_token}`
+    : null;
+
+  const msg = [
+    `Hi ${record.customer_name || 'there'} 👋`,
+    '',
+    `🧾 *Order:* ${record.order_number}`,
+    `📅 *Date:* ${record.date || ''}`,
+    items ? `🛍️ *Items:*\n${items}` : null,
+    '',
+    `💰 *Total: ₹${total.toLocaleString('en-IN')}*`,
+    shareUrl ? `\n🔗 View Invoice: ${shareUrl}` : null,
+    '',
+    `Thank you! 🙏`,
+  ].filter(l => l !== null).join('\n');
+
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+}

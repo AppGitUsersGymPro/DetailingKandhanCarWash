@@ -15,7 +15,7 @@ const METHOD = {
 
 const UNIT_LABEL = { l: 'L', ml: 'ml', pcs: 'pcs', kg: 'kg', g: 'g', box: 'Box', set: 'Set' };
 
-function buildSalesInvoiceHTML(record) {
+export function buildSalesInvoiceHTML(record, biz = {}) {
   /* record is a feed item (standalone or job_card) */
   const items     = record.items || [];
   const total     = Number(record.total_amount || 0);
@@ -25,6 +25,11 @@ function buildSalesInvoiceHTML(record) {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
+
+  const bizName    = biz.name    || 'Detailing Workshop';
+  const bizPhone   = biz.phone   || '';
+  const bizAddress = biz.address || '';
+  const bizGst     = biz.gst_number || '';
 
   const itemRows = items.map(it => {
     const unitStr = `${it.unit_amount} ${UNIT_LABEL[it.unit] || it.unit || ''}`.trim();
@@ -66,10 +71,11 @@ th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
 <div class="card" style="background:linear-gradient(135deg,#1a1e27,#0f1117);margin-bottom:20px">
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
     <div>
-      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">🛒 Sales Invoice</div>
-      <div style="font-size:12px;color:#6b7280;margin-top:4px">
-        ${isJC ? 'Via Job Card' : 'Direct Sale'}
-      </div>
+      <div style="font-size:22px;font-weight:800;color:#fff;letter-spacing:-.3px">🛒 ${bizName}</div>
+      <div style="font-size:12px;color:#6b7280;margin-top:4px">Sales Invoice · ${isJC ? 'Via Job Card' : 'Direct Sale'}</div>
+      ${bizPhone   ? `<div style="font-size:11px;color:#9ca3af;margin-top:6px">📞 ${bizPhone}</div>`   : ''}
+      ${bizAddress ? `<div style="font-size:11px;color:#9ca3af;margin-top:3px">📍 ${bizAddress}</div>` : ''}
+      ${bizGst     ? `<div style="font-size:11px;color:#9ca3af;margin-top:3px">GST: ${bizGst}</div>`   : ''}
     </div>
     <div style="text-align:right">
       <div style="font-size:16px;color:#38bdf8;font-weight:800">${billNo}</div>
@@ -120,7 +126,7 @@ th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
 </div>
 
 <div style="text-align:center;color:#374151;font-size:11px;margin-top:20px;padding-top:16px;border-top:1px solid #1a1e27">
-  Thank you for your purchase &nbsp;·&nbsp; ${billNo} &nbsp;·&nbsp; Detailing CRM
+  Thank you for your purchase &nbsp;·&nbsp; ${billNo} &nbsp;·&nbsp; ${bizName}
 </div>
 
 </div>
@@ -128,8 +134,20 @@ th{padding:9px 14px;color:#6b7280;font-weight:500;text-align:left;border-bottom:
 </html>`;
 }
 
-export function downloadSalesInvoice(record) {
-  const html = buildSalesInvoiceHTML(record);
+export async function downloadSalesInvoice(record) {
+  let biz = {};
+  try {
+    const { getSettings } = await import('../api/settings.js');
+    const settings = await getSettings();
+    const map = Object.fromEntries(settings.map(s => [s.field_name, s.value]));
+    biz = {
+      name:       map.business_name       || '',
+      phone:      map.business_phone      || '',
+      address:    map.business_address    || '',
+      gst_number: map.business_gst_number || '',
+    };
+  } catch { /* fall back to defaults if settings fetch fails */ }
+  const html = buildSalesInvoiceHTML(record, biz);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');

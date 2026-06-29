@@ -1082,6 +1082,7 @@ class SalesAnalyticsView(APIView):
                 'total_amount':   str(total.quantize(Decimal('0.01'))),
                 'payment_method': order.payment_method,
                 'notes':          order.notes,
+                'share_token':    str(order.share_token),
             })
 
         # Job-card sales grouped by job card
@@ -1345,6 +1346,57 @@ class JobCardPublicInvoiceView(APIView):
 
         return Response({
             'job_card': JobCardSerializer(jobcard).data,
+            'business': {
+                'name':       biz_map.get('business_name',       ''),
+                'phone':      biz_map.get('business_phone',      ''),
+                'address':    biz_map.get('business_address',    ''),
+                'gst_number': biz_map.get('business_gst_number', ''),
+            },
+        })
+
+
+class SalesOrderPublicView(APIView):
+    permission_classes    = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, share_token):
+        try:
+            order = SalesOrder.objects.prefetch_related('items__inventory__product').get(share_token=share_token)
+        except SalesOrder.DoesNotExist:
+            return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        from apps.site_settings.models import Setting
+        biz_keys = ['business_name', 'business_phone', 'business_address', 'business_gst_number']
+        biz_map  = {s.field_name: s.value for s in Setting.objects.filter(field_name__in=biz_keys)}
+
+        items_list = [
+            {
+                'product_name': it.inventory.product.product_name,
+                'brand':        it.inventory.brand,
+                'quantity':     str(it.quantity),
+                'unit_price':   str(it.unit_price),
+                'unit':         it.inventory.product.product_unit,
+                'unit_amount':  str(it.inventory.unit_amount),
+                'line_total':   str((it.unit_price * it.quantity).quantize(Decimal('0.01'))),
+            }
+            for it in order.items.all()
+        ]
+        total = sum((Decimal(i['line_total']) for i in items_list), Decimal('0'))
+
+        return Response({
+            'order': {
+                'type':           'standalone',
+                'id':             order.id,
+                'order_number':   order.order_number,
+                'date':           str(order.sale_date),
+                'customer_name':  order.customer_name,
+                'phone_number':   order.phone_number,
+                'vehicle_number': None,
+                'items':          items_list,
+                'total_amount':   str(total.quantize(Decimal('0.01'))),
+                'payment_method': order.payment_method,
+                'notes':          order.notes,
+            },
             'business': {
                 'name':       biz_map.get('business_name',       ''),
                 'phone':      biz_map.get('business_phone',      ''),
