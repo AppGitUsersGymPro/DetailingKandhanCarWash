@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.db.models import Sum
 from decimal import Decimal
 from .models import Employee, Shift, Attendance, SalaryAdvance, SalaryTransaction, IncentiveSetting
-
+from apps.finance.models import Expense
 
 # ── Shift ─────────────────────────────────────────────────────────────────────
 
@@ -75,6 +75,35 @@ class SalaryAdvanceSerializer(serializers.ModelSerializer):
                 )
             })
         return data
+    
+    def create(self, validated_data):
+        txn = SalaryAdvance.objects.create(**validated_data)
+        Expense.objects.create(
+            amount = txn.amount,
+            customer = txn.employee.employee_name,
+            date = txn.date,
+            category = "advance",
+            reference = txn.id,
+            description = txn.employee.id,
+        )
+        return txn
+    
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+        instance.save()
+        Expense.objects.filter(
+            reference = instance.employee.id,
+            category = "advance",
+        ).update(
+            amount = instance.amount,
+            customer = instance.employee.employee_name,
+            date = instance.date,
+            category = "advance",
+            reference = instance.id,
+            description = instance.employee.id,
+        )
+        return instance
 
 
 # ── Salary Transaction ────────────────────────────────────────────────────────
@@ -102,7 +131,35 @@ class SalaryTransactionSerializer(serializers.ModelSerializer):
                 {'advance_deduction': 'Advance deduction cannot exceed salary plus bonus plus incentive.'}
             )
         return data
+    def create(self, validated_data):
+        txn = SalaryTransaction.objects.create(**validated_data)
+        Expense.objects.create(
+            amount = txn.net_paid,
+            customer = txn.employee.employee_name,
+            date = txn.payment_date,
+            category = "salary",
+            reference = txn.employee.id,
+            description = txn.notes,
+        )
+        return txn
+    
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance,field,value)
+        instance.save()
 
+        Expense.objects.filter(
+            reference = instance.employee.id,
+            category = 'salary',
+        ).update(
+            amount = instance.net_paid,
+            customer = instance.employee.employee_name,
+            date = instance.payment_date,
+            category = "salary",
+            reference = instance.employee.id,
+            description = instance.notes,
+        )
+        return instance
 
 # ── Incentive Setting ─────────────────────────────────────────────────────────
 

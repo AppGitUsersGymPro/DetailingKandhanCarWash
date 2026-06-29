@@ -11,7 +11,8 @@ from .serializers import (
     EmployeeSerializer, ShiftSerializer, AttendanceSerializer,
     SalaryAdvanceSerializer, SalaryTransactionSerializer, IncentiveSettingSerializer,
 )
-
+from django.db import transaction
+from apps.finance.models import Expense
 
 
 # ── Shared helper ─────────────────────────────────────────────────────────────
@@ -190,8 +191,9 @@ class SalaryAdvanceListView(APIView):
     def post(self, request):
         serializer = SalaryAdvanceSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            with transaction.atomic():
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -209,15 +211,21 @@ class SalaryAdvanceDetailView(APIView):
             return Response({'error': 'Advance not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = SalaryAdvanceSerializer(obj, data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
+            with transaction.atomic():
+                serializer.save()
+                return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         obj = get_or_404(SalaryAdvance, pk)
         if not obj:
             return Response({'error': 'Advance not found'}, status=status.HTTP_404_NOT_FOUND)
-        obj.delete()
+        with transaction.atomic():
+            Expense.objects.filter(
+                reference=obj.employee.id,
+                category='advance',
+            ).delete()
+            obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -247,7 +255,8 @@ class SalaryTransactionListView(APIView):
     def post(self, request):
         serializer = SalaryTransactionSerializer(data=request.data)
         if serializer.is_valid():
-            txn = serializer.save()
+            with transaction.atomic():
+                txn = serializer.save()
 
             try:
                 from apps.notifications.utils import queue_notification, _get_business_name
@@ -285,15 +294,21 @@ class SalaryTransactionDetailView(APIView):
             return Response({'error': 'Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
         serializer = SalaryTransactionSerializer(obj, data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
+            with transaction.atomic():
+                serializer.save()
+                return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         obj = get_or_404(SalaryTransaction, pk)
         if not obj:
             return Response({'error': 'Transaction not found'}, status=status.HTTP_404_NOT_FOUND)
-        obj.delete()
+        with transaction.atomic():
+            Expense.objects.filter(
+                reference=obj.employee.id,
+                category='salary',
+            ).delete()
+            obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

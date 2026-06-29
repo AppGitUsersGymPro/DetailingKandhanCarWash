@@ -403,56 +403,55 @@ class FinanceExpenseView(APIView):
         results = []
 
         if not category or category == 'salary':
-            for s in SalaryTransaction.objects.filter(
-                status='paid',
-                payment_date__year=year,
-                payment_date__month=month,
-            ).select_related('employee').order_by('-payment_date'):
-                desc = f"Salary – {s.employee.employee_name} ({s.month.strftime('%b %Y')})"
+            for s in Expense.objects.filter(
+                date__year=year,
+                date__month=month,
+                category = 'salary',
+            ).order_by('-date'):
+                desc = s.description
                 if not search or search in desc.lower():
                     results.append({
-                        'id':          f'sal-{s.id}',
-                        'date':        s.payment_date.isoformat(),
-                        'description': desc,
-                        'amount':      str(s.net_paid),
+                        'id':          s.id,
+                        'date':        s.date.isoformat(),
+                        'description': s.customer,
+                        'amount':      str(s.amount),
                         'category':    'Salary',
-                        'reference':   f'{s.employee.employee_code} · {s.month.strftime("%b %Y")}',
+                        'reference':   s.reference,
                     })
 
         if not category or category == 'advance':
-            for a in SalaryAdvance.objects.filter(
-                status__in=['approved', 'deducted'],
+            for a in Expense.objects.filter(
+                category = "advance",
                 date__year=year,
                 date__month=month,
-            ).select_related('employee').order_by('-date'):
-                desc = f"Advance – {a.employee.employee_name}"
+            ).order_by('-date'):
+                desc = f"Advance – {a.customer}"
                 if not search or search in desc.lower():
                     results.append({
                         'id':          f'adv-{a.id}',
                         'date':        a.date.isoformat(),
-                        'description': desc,
+                        'description': a.customer,
                         'amount':      str(a.amount),
                         'category':    'Advance',
-                        'reference':   f'{a.employee.employee_code} · {a.date}',
+                        'reference':   a.id,
                     })
 
         if not category or category == 'vendor_invoice':
-            for ip in InvoicePayment.objects.filter(
-                payment_date__year=year,
-                payment_date__month=month,
-            ).select_related('invoice__vendor').order_by('-payment_date'):
-                desc = f"Invoice – {ip.invoice.invoice_number} "
+            for ip in Expense.objects.filter(
+                date__year=year,
+                date__month=month,
+                category = 'vendor_invoice',
+            ).order_by('-date'):
+                desc = ip.description
                 if not search or search in desc.lower():
                     results.append({
                         'id':          f'inv-{ip.id}',
-                        'date':        ip.payment_date.isoformat(),
-                        'description': desc,
+                        'date':        ip.date.isoformat(),
+                        'description': ip.customer,
                         'amount':      str(ip.amount),
                         'category':    'Vendor Invoice',
-                        'reference':   ip.invoice.invoice_number,
+                        'reference':   ip.reference,
                     })
-
-        
 
         if not category or category == "others":
             for e in Expense.objects.filter(

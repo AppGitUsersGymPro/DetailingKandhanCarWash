@@ -18,19 +18,19 @@ import {
 } from '../../api/employees';
 import { extractError } from '../../api/axios';
 
-const MONTHS = ['January','February','March','April','May','June',
-                'July','August','September','October','November','December'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
 
 const ADVANCE_STATUS = {
-  pending:  { label: 'Pending',  variant: 'blue'   },
-  approved: { label: 'Approved', variant: 'green'  },
+  pending: { label: 'Pending', variant: 'blue' },
+  approved: { label: 'Approved', variant: 'green' },
   deducted: { label: 'Deducted', variant: 'purple' },
-  rejected: { label: 'Rejected', variant: 'red'    },
+  rejected: { label: 'Rejected', variant: 'red' },
 };
 
 const PAY_STATUS = {
   pending: { label: 'Pending', variant: 'yellow' },
-  paid:    { label: 'Paid',    variant: 'green'  },
+  paid: { label: 'Paid', variant: 'green' },
 };
 
 function todayStr() {
@@ -49,11 +49,10 @@ export default function Salary() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              tab === t.key
-                ? 'border-accent text-accent'
-                : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${tab === t.key
+              ? 'border-accent text-accent'
+              : 'border-transparent text-gray-400 hover:text-gray-200'
+              }`}
           >
             {t.label}
           </button>
@@ -69,13 +68,13 @@ export default function Salary() {
 
 function TransactionsTab() {
   const toast = useToast();
-  const now   = new Date();
-  const [month, setMonth]           = useState(now.getMonth() + 1);
-  const [year, setYear]             = useState(now.getFullYear());
-  const [loading, setLoading]       = useState(true);
-  const [records, setRecords]       = useState([]);
-  const [employees, setEmployees]   = useState([]);
-  const [modal, setModal]           = useState(null);
+  const now = new Date();
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [modal, setModal] = useState(null);
   const [confirmDel, setConfirmDel] = useState(null);
   const [delLoading, setDelLoading] = useState(false);
 
@@ -115,7 +114,7 @@ function TransactionsTab() {
   };
 
   const totalPayroll = records.reduce((s, r) => s + Number(r.net_paid), 0);
-  const totalPaid    = records.filter((r) => r.status === 'paid').reduce((s, r) => s + Number(r.net_paid), 0);
+  const totalPaid = records.filter((r) => r.status === 'paid').reduce((s, r) => s + Number(r.net_paid), 0);
   const totalPending = records.filter((r) => r.status === 'pending').reduce((s, r) => s + Number(r.net_paid), 0);
 
   const columns = [
@@ -191,9 +190,9 @@ function TransactionsTab() {
 
       {!loading && records.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-          <StatCard icon={Wallet}      label="Total Payroll" value={`₹${totalPayroll.toLocaleString('en-IN')}`} accent="accent" />
-          <StatCard icon={CheckCircle} label="Paid"          value={`₹${totalPaid.toLocaleString('en-IN')}`}    accent="green"  />
-          <StatCard icon={Clock}       label="Pending"       value={`₹${totalPending.toLocaleString('en-IN')}`} accent="yellow" />
+          <StatCard icon={Wallet} label="Total Payroll" value={`₹${totalPayroll.toLocaleString('en-IN')}`} accent="accent" />
+          <StatCard icon={CheckCircle} label="Paid" value={`₹${totalPaid.toLocaleString('en-IN')}`} accent="green" />
+          <StatCard icon={Clock} label="Pending" value={`₹${totalPending.toLocaleString('en-IN')}`} accent="yellow" />
         </div>
       )}
 
@@ -242,25 +241,25 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
     status: 'pending', payment_date: '', notes: '',
   });
 
-  const [form, setForm]                   = useState(buildEmpty);
-  const [submitting, setSubmitting]       = useState(false);
-  const [errors, setErrors]               = useState({});
+  const [form, setForm] = useState(buildEmpty);
+  const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
   const [approvedAdvances, setApprovedAdvances] = useState([]);
-  const [loadingAdvances, setLoadingAdvances]   = useState(false);
+  const [loadingAdvances, setLoadingAdvances] = useState(false);
 
   // Reset form when modal opens
   useEffect(() => {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
-        employee:          String(modal.data.employee  || ''),
-        month:             modal.data.month             || buildEmpty().month,
-        base_salary:       modal.data.base_salary       || '',
-        bonus:             modal.data.bonus             || '0',
+        employee: String(modal.data.employee || ''),
+        month: modal.data.month || buildEmpty().month,
+        base_salary: modal.data.base_salary || '',
+        bonus: modal.data.bonus || '0',
         advance_deduction: modal.data.advance_deduction || '0',
-        status:            modal.data.status            || 'pending',
-        payment_date:      modal.data.payment_date      || '',
-        notes:             modal.data.notes             || '',
+        status: modal.data.status || 'pending',
+        payment_date: modal.data.payment_date || '',
+        notes: modal.data.notes || '',
       });
       setApprovedAdvances([]);
     } else {
@@ -295,23 +294,23 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
         const total = advs.reduce((s, a) => s + Number(a.amount), 0);
         setForm((f) => ({ ...f, advance_deduction: String(total) }));
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingAdvances(false));
   };
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const base = Number(form.base_salary) || 0;
-  const adv  = Number(form.advance_deduction) || 0;
-  const bon  = Number(form.bonus) || 0;
-  const net  = base + bon - adv;
+  const adv = Number(form.advance_deduction) || 0;
+  const bon = Number(form.bonus) || 0;
+  const net = base + bon - adv;
 
   const selectedEmp = employees.find((e) => String(e.id) === String(form.employee));
 
   const submit = async (e) => {
     e.preventDefault();
     const eMap = {};
-    if (!form.employee)    eMap.employee    = 'Select an employee';
+    if (!form.employee) eMap.employee = 'Select an employee';
     if (!form.base_salary) eMap.base_salary = 'Required';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
@@ -319,11 +318,11 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
     try {
       const payload = {
         ...form,
-        base_salary:       Number(form.base_salary),
-        bonus:             Number(form.bonus) || 0,
+        base_salary: Number(form.base_salary),
+        bonus: Number(form.bonus) || 0,
         advance_deduction: Number(form.advance_deduction) || 0,
-        payment_date:      form.payment_date || null,
-        notes:             form.notes || null,
+        payment_date: form.payment_date || null,
+        notes: form.notes || null,
       };
       if (modal.mode === 'edit') {
         await updateTransaction(modal.data.id, payload);
@@ -417,10 +416,10 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
             loadingAdvances
               ? 'Fetching approved advances…'
               : approvedAdvances.length > 0
-              ? `Auto-filled: ${approvedAdvances.length} approved advance${approvedAdvances.length > 1 ? 's' : ''} totalling ₹${approvedAdvances.reduce((s,a)=>s+Number(a.amount),0).toLocaleString('en-IN')} — edit to deduct partially`
-              : modal?.mode !== 'edit' && form.employee
-              ? 'No approved advances found for this employee'
-              : undefined
+                ? `Auto-filled: ${approvedAdvances.length} approved advance${approvedAdvances.length > 1 ? 's' : ''} totalling ₹${approvedAdvances.reduce((s, a) => s + Number(a.amount), 0).toLocaleString('en-IN')} — edit to deduct partially`
+                : modal?.mode !== 'edit' && form.employee
+                  ? 'No approved advances found for this employee'
+                  : undefined
           }
         >
           <Input
@@ -454,13 +453,12 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <p className="text-xs font-medium text-gray-300 mb-1.5">Net Payable</p>
-            <div className={`px-3 py-2.5 rounded-lg border text-sm font-semibold flex items-center justify-between ${
-              net < 0
-                ? 'border-red-700/40 bg-red-900/20 text-red-300'
-                : net === 0
+            <div className={`px-3 py-2.5 rounded-lg border text-sm font-semibold flex items-center justify-between ${net < 0
+              ? 'border-red-700/40 bg-red-900/20 text-red-300'
+              : net === 0
                 ? 'border-yellow-700/40 bg-yellow-900/20 text-yellow-300'
                 : 'border-emerald-700/40 bg-emerald-900/20 text-emerald-300'
-            }`}>
+              }`}>
               <span>₹{net.toLocaleString('en-IN')}</span>
               <span className="text-xs font-normal opacity-70">
                 {base > 0 && `${base.toLocaleString('en-IN')}${bon > 0 ? ` + ${bon.toLocaleString('en-IN')}` : ''}${adv > 0 ? ` − ${adv.toLocaleString('en-IN')}` : ''}`}
@@ -509,12 +507,12 @@ function TransactionFormModal({ modal, onClose, onSaved, employees, currentMonth
 
 function AdvancesTab() {
   const toast = useToast();
-  const [loading, setLoading]           = useState(true);
-  const [records, setRecords]           = useState([]);
-  const [employees, setEmployees]       = useState([]);
-  const [modal, setModal]               = useState(null);
-  const [confirmDel, setConfirmDel]     = useState(null);
-  const [delLoading, setDelLoading]     = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [modal, setModal] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [delLoading, setDelLoading] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
 
   const load = async () => {
@@ -554,10 +552,10 @@ function AdvancesTab() {
     try {
       await updateAdvance(adv.id, {
         employee: adv.employee,
-        date:     adv.date,
-        amount:   Number(adv.amount),
-        reason:   adv.reason || null,
-        status:   newStatus,
+        date: adv.date,
+        amount: Number(adv.amount),
+        reason: adv.reason || null,
+        status: newStatus,
       });
       const msgs = { approved: 'Advance approved', rejected: 'Advance rejected', deducted: 'Marked as deducted' };
       toast.success(msgs[newStatus] || 'Updated');
@@ -567,10 +565,10 @@ function AdvancesTab() {
     }
   };
 
-  const pendingCount    = records.filter((r) => r.status === 'pending').length;
+  const pendingCount = records.filter((r) => r.status === 'pending').length;
   const approvedBalance = records.filter((r) => r.status === 'approved').reduce((s, r) => s + Number(r.amount), 0);
-  const pendingBalance  = records.filter((r) => r.status === 'pending').reduce((s, r) => s + Number(r.amount), 0);
-  const totalDeducted   = records.filter((r) => r.status === 'deducted').reduce((s, r) => s + Number(r.amount), 0);
+  const pendingBalance = records.filter((r) => r.status === 'pending').reduce((s, r) => s + Number(r.amount), 0);
+  const totalDeducted = records.filter((r) => r.status === 'deducted').reduce((s, r) => s + Number(r.amount), 0);
 
   const columns = [
     {
@@ -644,11 +642,10 @@ function AdvancesTab() {
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5 ${
-                filterStatus === s
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-bg-elev text-gray-400 border-border hover:text-gray-100'
-              }`}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5 ${filterStatus === s
+                ? 'bg-accent text-white border-accent'
+                : 'bg-bg-elev text-gray-400 border-border hover:text-gray-100'
+                }`}
             >
               {s === '' ? 'All' : ADVANCE_STATUS[s]?.label || s}
               {s === 'pending' && pendingCount > 0 && (
@@ -676,9 +673,9 @@ function AdvancesTab() {
       {/* Summary cards */}
       {!loading && records.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-          <StatCard icon={Clock}       label="Pending Approval" value={`₹${pendingBalance.toLocaleString('en-IN')}`}  accent="blue"   />
-          <StatCard icon={AlertCircle} label="Approved (Due)"   value={`₹${approvedBalance.toLocaleString('en-IN')}`} accent="yellow" />
-          <StatCard icon={CheckCircle} label="Total Deducted"   value={`₹${totalDeducted.toLocaleString('en-IN')}`}   accent="green"  />
+          <StatCard icon={Clock} label="Pending Approval" value={`₹${pendingBalance.toLocaleString('en-IN')}`} accent="blue" />
+          <StatCard icon={AlertCircle} label="Approved (Due)" value={`₹${approvedBalance.toLocaleString('en-IN')}`} accent="yellow" />
+          <StatCard icon={CheckCircle} label="Total Deducted" value={`₹${totalDeducted.toLocaleString('en-IN')}`} accent="green" />
         </div>
       )}
 
@@ -711,23 +708,23 @@ function AdvancesTab() {
 // ── Advance Form Modal ────────────────────────────────────────────────────────
 
 function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
-  const toast  = useToast();
-  const today  = todayStr();
-  const empty  = { employee: '', date: today, amount: '', reason: '', status: 'pending' };
+  const toast = useToast();
+  const today = todayStr();
+  const empty = { employee: '', date: today, amount: '', reason: '', status: 'pending' };
 
-  const [form, setForm]         = useState(empty);
+  const [form, setForm] = useState(empty);
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors]     = useState({});
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     if (!modal) return;
     if (modal.mode === 'edit') {
       setForm({
         employee: String(modal.data.employee || ''),
-        date:     modal.data.date   || today,
-        amount:   modal.data.amount || '',
-        reason:   modal.data.reason || '',
-        status:   modal.data.status || 'pending',
+        date: modal.data.date || today,
+        amount: modal.data.amount || '',
+        reason: modal.data.reason || '',
+        status: modal.data.status || 'pending',
       });
     } else {
       setForm({ ...empty, date: today });
@@ -744,8 +741,8 @@ function AdvanceFormModal({ modal, onClose, onSaved, employees }) {
     e.preventDefault();
     const eMap = {};
     if (!form.employee) eMap.employee = 'Select an employee';
-    if (!form.date)     eMap.date     = 'Required';
-    if (!form.amount)   eMap.amount   = 'Required';
+    if (!form.date) eMap.date = 'Required';
+    if (!form.amount) eMap.amount = 'Required';
     if (Number(form.amount) <= 0) eMap.amount = 'Amount must be greater than 0';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;

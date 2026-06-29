@@ -1,4 +1,5 @@
 from decimal import Decimal
+from apps.finance.models import Expense
 from rest_framework import serializers
 from .models import Vendor, ProductType, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
 
@@ -182,7 +183,18 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 selling_price=item_data.get('selling_price'),
                 delta=item_data['quantity'],
             )
+        self.recordExpense(invoice)
         return invoice
+    
+    def recordExpense(self, invoice):
+        Expense.objects.create(
+            amount = invoice.total_amount,
+            customer = invoice.vendor.vendor_name,
+            date = invoice.invoice_date,
+            category = "vendor_invoice",
+            reference = invoice.invoice_number,
+            description = invoice.vendor_invoice_id
+        )
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items')
@@ -199,6 +211,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 inv.save()
             except Inventory.DoesNotExist:
                 pass
+
         instance.items.all().delete()
 
         instance.vendor           = validated_data.get('vendor', instance.vendor)
@@ -206,6 +219,16 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         instance.total_amount     = validated_data.get('total_amount', instance.total_amount)
         instance.invoice_date     = validated_data.get('invoice_date', instance.invoice_date)
         instance.save()
+
+        Expense.objects.filter(
+        reference=instance.invoice_number,
+        category='vendor_invoice',
+        ).update(
+            amount=instance.total_amount,
+            customer=instance.vendor.vendor_name,
+            date=instance.invoice_date,
+            description=instance.vendor_invoice_id,
+        )
 
         for item_data in items_data:
             InvoiceItem.objects.create(invoice=instance, **item_data)

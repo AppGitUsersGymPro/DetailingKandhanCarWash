@@ -99,7 +99,7 @@ class Invoice(models.Model):
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     vendor_name = models.CharField(max_length=255, blank=True, null=True)
     vendor_gst_number = models.CharField(max_length=255, blank=True, null=True)
-    vendor_phone_number = models.CharField(max_length=20, unique=True,blank=True, null=True)
+    vendor_phone_number = models.CharField(max_length=20,blank=True, null=True)
 
 
     def save(self, *args, **kwargs):
