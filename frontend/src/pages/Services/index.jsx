@@ -153,7 +153,39 @@ export default function ServicesList() {
           action={<Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Service</Button>}
         />
       ) : (
-        <Table columns={columns} rows={services} onRowClick={(r) => navigate(`/services/${r.id}`)} />
+        <>
+          <div className="hidden xl:block">
+            <Table columns={columns} rows={services} onRowClick={(r) => navigate(`/services/${r.id}`)} />
+          </div>
+          <div className="flex flex-col gap-2 xl:hidden">
+            {services.map((r) => (
+              <div key={r.id} className="bg-bg-card border border-border rounded-xl p-3 cursor-pointer hover:border-accent/40 transition-colors" onClick={() => navigate(`/services/${r.id}`)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-100 truncate">{r.service_name}</div>
+                    <code className="text-[10px] text-gray-500 bg-bg-elev px-1.5 py-0.5 rounded mt-1 inline-block">{r.service_code}</code>
+                  </div>
+                  <div className="text-sm font-bold text-gray-100 shrink-0">₹{Number(r.service_price).toLocaleString('en-IN')}</div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  {r.reduces_stock && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-900/30 text-emerald-300 border border-emerald-700/40">Stock reduction</span>}
+                  {r.has_warranty && <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-sky-900/30 text-sky-300 border border-sky-700/40">Warranty{r.warranty_months ? ` ${r.warranty_months}m` : ''}</span>}
+                  {(r.vehicle_prices || []).length > 0 && <span className="text-[10px] text-accent">{r.vehicle_prices.length} vehicle type{r.vehicle_prices.length !== 1 ? 's' : ''}</span>}
+                </div>
+                <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                  <div className="flex gap-3 text-[10px] text-gray-500">
+                    <span>{(r.products || []).length} product{(r.products || []).length !== 1 ? 's' : ''}</span>
+                    <span>{(r.employees || []).length} employee{(r.employees || []).length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                    <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent"><Pencil size={14} /></button>
+                    <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <ServiceFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} />

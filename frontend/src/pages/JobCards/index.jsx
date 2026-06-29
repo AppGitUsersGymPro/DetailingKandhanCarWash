@@ -512,12 +512,102 @@ export default function JobCardsList() {
           }
         />
       ) : (
-        <Table
-          columns={columns}
-          rows={filtered}
-          onRowClick={(r) => navigate(`/jobcards/${r.id}`)}
-        />
+        <>
+          {/* Desktop: table */}
+          <div className="hidden xl:block">
+            <Table
+              columns={columns}
+              rows={filtered}
+              onRowClick={(r) => navigate(`/jobcards/${r.id}`)}
+            />
+          </div>
+          {/* Mobile / tablet: card grid */}
+          <div className="grid grid-cols-1 gap-3 xl:hidden">
+            {filtered.map((r) => (
+              <JobCardGridCard
+                key={r.id}
+                r={r}
+                navigate={navigate}
+                toast={toast}
+                tiers={tiers}
+                setPayJobCard={setPayJobCard}
+              />
+            ))}
+          </div>
+        </>
       )}
+    </div>
+  );
+}
+
+/* ─── Mobile / tablet card for a single job card row ────────────────────────*/
+function JobCardGridCard({ r, navigate, toast, tiers, setPayJobCard }) {
+  const payCfg = PAY_STATUS[r.payment_status] || PAY_STATUS.unpaid;
+  const isHV = tiers.high_value.some(t => t.id === r.customer_id);
+  const isFQ = !isHV && tiers.frequent.some(t => t.id === r.customer_id);
+  const hasCompletedSvcs = (r.job_card_services || []).some(s => s.service_status === 'completed');
+
+  return (
+    <div
+      className="bg-bg-card border border-border rounded-xl p-3 cursor-pointer hover:border-accent/40 transition-colors flex flex-col gap-2"
+      onClick={() => navigate(`/jobcards/${r.id}`)}
+    >
+      {/* Row 1: JC# + date + payment badge */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-bold text-accent shrink-0">{r.job_card_number}</span>
+          <span className="text-xs text-gray-500">{r.job_card_date}</span>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          {isHV && <span title="High-Value Customer" className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-extrabold bg-violet-900/50 text-violet-300 border border-violet-600/50">H</span>}
+          {isFQ && <span title="Frequent Visitor" className="w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-extrabold bg-cyan-900/50 text-cyan-300 border border-cyan-600/50">F</span>}
+          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${payCfg.cls}`}>{payCfg.label}</span>
+        </div>
+      </div>
+
+      {/* Row 2: Customer | Vehicle | Total (3 cols) */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="min-w-0">
+          {r.garage_name
+            ? <div className="text-sky-300 font-medium truncate">{r.garage_name}</div>
+            : <div className="text-gray-200 font-medium truncate">{r.customer_name}</div>}
+          {r.phone_number && <div className="text-gray-500 text-[10px] truncate">{r.phone_number}</div>}
+        </div>
+        <div className="min-w-0">
+          <div className="text-sky-300 font-semibold truncate">{r.vehicle_number}</div>
+          {(r.vehicle_company || r.vehicle_model) && (
+            <div className="text-gray-500 text-[10px] truncate">{[r.vehicle_company, r.vehicle_model].filter(Boolean).join(' · ')}</div>
+          )}
+        </div>
+        <div className="min-w-0 text-right">
+          <div className="text-gray-100 font-semibold">₹{Number(r.total_amount || 0).toLocaleString('en-IN')}</div>
+          <div className="text-gray-500 text-[10px] truncate">{r.employee_name || '—'}</div>
+        </div>
+      </div>
+
+      {/* Row 3: statuses + action buttons */}
+      <div className="flex items-center gap-1.5 pt-1.5 border-t border-border" onClick={e => e.stopPropagation()}>
+        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${r.job_card_status === 'COMPLETED' ? 'text-emerald-400 bg-emerald-900/30 border-emerald-700/50' : 'text-yellow-400 bg-yellow-900/30 border-yellow-700/50'}`}>
+          {r.job_card_status === 'COMPLETED' ? 'Done' : 'In Progress'}
+        </span>
+        {hasCompletedSvcs && (r.usage_complete
+          ? <span className="text-[10px] text-emerald-400 shrink-0">✓ Usage</span>
+          : <span className="text-[10px] text-amber-400 shrink-0">⚠ Usage</span>
+        )}
+        <div className="ml-auto flex items-center gap-0.5">
+          <button onClick={e => { e.stopPropagation(); downloadJobCardInvoice(r); }} className="p-1 text-gray-500 hover:text-blue-400 transition-colors" title="Download invoice"><FileText size={14} /></button>
+          {r.phone_number && (
+            <button onClick={e => { e.stopPropagation(); openWhatsAppForJobCard(r, toast); }} className="p-1 text-gray-500 hover:text-green-400 transition-colors" title="WhatsApp"><WaIcon /></button>
+          )}
+          <button onClick={e => { e.stopPropagation(); navigate(`/jobcards/${r.id}/edit`); }} className="p-1 text-gray-500 hover:text-gray-200 transition-colors" title="Edit"><Pencil size={14} /></button>
+          <button
+            onClick={e => { e.stopPropagation(); setPayJobCard(r); }}
+            className={`ml-1 text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors ${r.payment_status === 'paid' ? 'text-gray-400 border-border hover:bg-bg-hover' : 'text-white bg-accent border-accent hover:bg-accent/80'}`}
+          >
+            {r.payment_status === 'paid' ? 'View' : 'Pay Now'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

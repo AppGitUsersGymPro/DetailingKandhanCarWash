@@ -46,15 +46,15 @@ function SummaryCard({ label, value, icon: Icon, sub, accent = 'indigo' }) {
     amber:  { bg: 'bg-amber-500/10',   border: 'border-amber-500/25',  text: 'text-amber-400' },
   }[accent] || {};
   return (
-    <div className={`rounded-xl border p-4 ${cfg.bg} ${cfg.border}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <div className={`w-7 h-7 rounded-lg bg-bg-elev flex items-center justify-center ${cfg.text}`}>
-          <Icon size={15} />
+    <div className={`rounded-xl border p-3 sm:p-4 overflow-hidden ${cfg.bg} ${cfg.border}`}>
+      <div className="flex items-center gap-2 mb-2 min-w-0">
+        <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-bg-elev flex items-center justify-center shrink-0 ${cfg.text}`}>
+          <Icon size={13} />
         </div>
-        <span className="text-xs text-gray-400">{label}</span>
+        <span className="text-[11px] sm:text-xs text-gray-400 truncate">{label}</span>
       </div>
-      <div className="text-xl font-bold text-gray-100">{value}</div>
-      {sub && <div className="text-[11px] text-gray-500 mt-0.5">{sub}</div>}
+      <div className="text-base sm:text-lg font-bold text-gray-100 break-all leading-tight">{value}</div>
+      {sub && <div className="text-[10px] sm:text-[11px] text-gray-500 mt-0.5 truncate">{sub}</div>}
     </div>
   );
 }
@@ -532,7 +532,7 @@ export default function DailyReport() {
           </div>
 
           {/* ── 1. Summary KPI Row ───────────────────────────── */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <SummaryCard
               label="Total Billed"
               value={fmt(report.summary.total_billed)}
@@ -657,23 +657,23 @@ export default function DailyReport() {
                     prefix: '−',
                   },
                 ].map(row => (
-                  <div key={row.label} className="flex items-center justify-between py-3 border-b border-border">
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <row.icon size={14} className={row.cls} />
-                      {row.label}
+                  <div key={row.label} className="flex items-center justify-between gap-3 py-3 border-b border-border">
+                    <div className="flex items-center gap-2 text-xs text-gray-400 min-w-0">
+                      <row.icon size={14} className={`${row.cls} shrink-0`} />
+                      <span className="truncate">{row.label}</span>
                     </div>
-                    <span className={`text-sm font-semibold ${row.cls}`}>
+                    <span className={`text-sm font-semibold shrink-0 ${row.cls}`}>
                       {row.prefix}{fmt(row.value)}
                     </span>
                   </div>
                 ))}
                 {/* Closing */}
-                <div className="flex items-center justify-between pt-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-100">
+                <div className="flex items-center justify-between gap-3 pt-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-100 shrink-0">
                     <CheckCircle2 size={15} className={Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'} />
                     Closing Balance
                   </div>
-                  <span className={`text-2xl font-bold ${Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  <span className={`text-lg sm:text-2xl font-bold break-all text-right ${Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {fmt(report.cash_flow.closing_balance)}
                   </span>
                 </div>
@@ -845,11 +845,11 @@ export default function DailyReport() {
                   const fmtN    = n => n % 1 === 0 ? String(n) : n.toFixed(2);
                   const unitLabel = UNIT[p.unit] || p.unit;
                   return (
-                    <div key={i} className="flex items-center gap-3">
+                    <div key={i} className="flex items-center gap-2 sm:gap-3">
                       {/* Rank */}
-                      <div className="w-5 text-center text-[11px] text-gray-600 font-mono shrink-0">{i + 1}</div>
+                      <div className="w-4 sm:w-5 text-center text-[11px] text-gray-600 font-mono shrink-0">{i + 1}</div>
                       {/* Name + brand */}
-                      <div className="w-40 shrink-0">
+                      <div className="w-24 sm:w-40 shrink-0 min-w-0">
                         <div className="text-xs font-medium text-gray-200 truncate">{p.product_name}</div>
                         {p.brand && <div className="text-[10px] text-gray-500 truncate">{p.brand}</div>}
                       </div>
@@ -858,7 +858,7 @@ export default function DailyReport() {
                         <div className="h-full rounded-full bg-cyan-500/60" style={{ width: `${pct}%` }} />
                       </div>
                       {/* qty × unit_amount unit */}
-                      <div className="w-32 text-right text-xs shrink-0">
+                      <div className="w-24 sm:w-32 text-right text-xs shrink-0">
                         <span className="font-semibold text-cyan-300">{fmtN(qty)}</span>
                         <span className="text-gray-500 mx-0.5">×</span>
                         <span className="text-gray-400">{fmtN(ua)}</span>

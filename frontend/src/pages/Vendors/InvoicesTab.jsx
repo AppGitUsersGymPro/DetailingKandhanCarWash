@@ -335,7 +335,51 @@ export default function InvoicesTab() {
         />
       ) : filteredInvoices.length === 0 ? (
         <div className="text-center py-12 text-gray-500 text-sm">No invoices match the current filters.</div>
-      ) : <Table columns={columns} rows={filteredInvoices} />}
+      ) : (
+        <>
+          <div className="hidden xl:block">
+            <Table columns={columns} rows={filteredInvoices} />
+          </div>
+          <div className="flex flex-col gap-2 xl:hidden">
+            {filteredInvoices.map((r) => (
+              <div key={r.id} className="bg-bg-card border border-border rounded-xl p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-mono font-semibold text-gray-100">{r.invoice_number}</span>
+                      <StatusBadge status={r.payment_status} />
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">{r.vendor_name}</div>
+                    {r.vendor_invoice_id && <div className="text-[10px] text-gray-500">Ref: {r.vendor_invoice_id}</div>}
+                  </div>
+                  <div className="text-xs text-gray-500 shrink-0 text-right">{r.invoice_date}</div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-border text-xs">
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Total</div>
+                    <div className="font-semibold text-gray-100">{fmt(r.total_amount)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Paid</div>
+                    <div className="text-green-400 font-medium">{fmt(r.total_paid)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Outstanding</div>
+                    <div className={Number(r.outstanding_amount) > 0 ? 'text-amber-400 font-medium' : 'text-gray-500'}>{fmt(r.outstanding_amount)}</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-border">
+                  <button onClick={() => openView(r.id)} className="p-1.5 text-gray-400 hover:text-accent" title="View"><Eye size={14} /></button>
+                  <button onClick={() => downloadInvoicePdf(r)} className="p-1.5 text-gray-400 hover:text-blue-400" title="Download"><Download size={14} /></button>
+                  {r.payment_status !== 'paid' && (
+                    <button onClick={() => setPayModal({ invoice: r })} className="p-1.5 text-gray-400 hover:text-green-400" title="Pay"><CreditCard size={14} /></button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <CreateInvoiceModal open={createOpen} onClose={() => setCreateOpen(false)} onSaved={load} vendors={vendors} products={products} brands={inventoryBrands} />
       <ViewInvoiceModal invoice={viewInvoice} onClose={() => setViewInvoice(null)} />

@@ -44,14 +44,13 @@ const FILTERS = [
   { key: 'today', label: 'Today' },
   { key: 'week',  label: 'This Week' },
   { key: 'month', label: 'This Month' },
-  { key: 'all',   label: 'All Time' },
 ];
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const toast = useToast();
-  const [dateFilter, setDateFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('month');
   const [loading, setLoading]       = useState(true);
   const [stats, setStats]           = useState({ active: 0, customers: 0, revenue: 0 });
   const [recentJobs, setRecentJobs] = useState([]);
@@ -99,7 +98,7 @@ export default function Dashboard() {
   useEffect(() => { load(dateFilter); }, [dateFilter, load]);
 
   const activeFilter = FILTERS.find(f => f.key === dateFilter);
-  const revenueLabel = dateFilter === 'all' ? 'Revenue (All Time)' : `Revenue (${activeFilter?.label})`;
+  const revenueLabel = `Revenue (${activeFilter?.label})`;
 
   return (
     <div>
@@ -107,13 +106,13 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle="Overview of your detailing workshop"
         actions={
-          <div className="flex items-center gap-1.5 bg-bg-elev border border-border rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 flex-wrap">
             <Calendar size={13} className="text-gray-500 ml-1 shrink-0" />
             {FILTERS.map(f => (
               <button
                 key={f.key}
                 onClick={() => setDateFilter(f.key)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                   dateFilter === f.key
                     ? 'bg-accent text-white shadow-sm'
                     : 'text-gray-400 hover:text-gray-100'
@@ -161,7 +160,7 @@ export default function Dashboard() {
             <EmptyState
               icon={ClipboardList}
               title="No job cards"
-              message={dateFilter === 'all' ? 'Create your first job card to get started.' : `No job cards found for ${activeFilter?.label.toLowerCase()}.`}
+              message={`No job cards found for ${activeFilter?.label.toLowerCase()}.`}
             />
           ) : (
             <div className="divide-y divide-border">

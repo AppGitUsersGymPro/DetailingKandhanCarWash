@@ -196,7 +196,32 @@ function CustomersTab() {
           action={<Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Customer</Button>}
         />
       ) : (
-        <Table columns={columns} rows={customers} onRowClick={(r) => navigate(`/customers/${r.id}`)} />
+        <>
+          <div className="hidden xl:block">
+            <Table columns={columns} rows={customers} onRowClick={(r) => navigate(`/customers/${r.id}`)} />
+          </div>
+          <div className="flex flex-col gap-2 xl:hidden">
+            {customers.map((r) => (
+              <div key={r.id} className="bg-bg-card border border-border rounded-xl p-3 cursor-pointer hover:border-accent/40 transition-colors" onClick={() => navigate(`/customers/${r.id}`)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-100 truncate">{r.customer_name}</div>
+                    {r.phone_number && <div className="text-xs text-gray-500 mt-0.5">{r.phone_number}</div>}
+                    {r.email && <div className="text-xs text-gray-500 truncate">{r.email}</div>}
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-bg-elev border border-border text-gray-400 shrink-0">
+                    {(r.vehicles || []).length} vehicle{(r.vehicles || []).length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
+                  <button className="px-2.5 py-1 text-xs text-white bg-accent rounded hover:bg-accent-hover" onClick={() => navigate(`/customers/${r.id}`)}>View</button>
+                  <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent"><Pencil size={14} /></button>
+                  <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <CustomerFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} />
@@ -351,11 +376,39 @@ function VehiclesTab() {
           message={hasFilter ? 'Try adjusting your filters.' : 'No vehicles registered yet.'}
         />
       ) : (
-        <Table
-          columns={columns}
-          rows={vehicles}
-          onRowClick={(r) => navigate(`/customers/vehicles/${r.id}`)}
-        />
+        <>
+          <div className="hidden xl:block">
+            <Table columns={columns} rows={vehicles} onRowClick={(r) => navigate(`/customers/vehicles/${r.id}`)} />
+          </div>
+          <div className="flex flex-col gap-2 xl:hidden">
+            {vehicles.map((r) => {
+              const parts = [r.vehicle_company, r.vehicle_model, r.vehicle_colour].filter(Boolean);
+              const next = r.next_service_date || addMonths(r.last_service_date, 6);
+              const isOverdue = next && new Date(next) < new Date();
+              return (
+                <div key={r.id} className="bg-bg-card border border-border rounded-xl p-3 cursor-pointer hover:border-accent/40 transition-colors" onClick={() => navigate(`/customers/vehicles/${r.id}`)}>
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <span className="text-sm font-bold text-sky-300">{r.vehicle_number}</span>
+                    <span className="text-[10px] text-gray-500 bg-bg-elev px-2 py-0.5 rounded-full border border-border">{VTYPE_LABEL[r.vehicle_type] || r.vehicle_type}</span>
+                  </div>
+                  {parts.length > 0 && <div className="text-xs text-gray-400 mb-1">{parts.join(' · ')}</div>}
+                  <div className="text-xs text-gray-200">{r.customer_name}</div>
+                  {r.customer_phone_number && <div className="text-xs text-gray-500">{r.customer_phone_number}</div>}
+                  <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-border text-xs">
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Last Service</div>
+                      <div className="text-gray-400">{fmtDate(r.last_service_date)}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Next Service</div>
+                      <div className={next ? (isOverdue ? 'text-red-400 font-medium' : 'text-emerald-400 font-medium') : 'text-gray-500'}>{next ? fmtDate(next) : '—'}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
     </>
   );
@@ -453,7 +506,33 @@ function GaragesTab() {
           action={<Button onClick={() => setModal({ mode: 'create' })}><Plus size={16} /> Add Garage</Button>}
         />
       ) : (
-        <Table columns={columns} rows={garages} />
+        <>
+          <div className="hidden xl:block">
+            <Table columns={columns} rows={garages} />
+          </div>
+          <div className="flex flex-col gap-2 xl:hidden">
+            {garages.map((r) => (
+              <div key={r.id} className="bg-bg-card border border-border rounded-xl p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-100 truncate">{r.garage_name}</div>
+                    {r.name && <div className="text-xs text-gray-400 mt-0.5">{r.name}</div>}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent"><Pencil size={14} /></button>
+                    <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-xs text-gray-500">
+                  {r.phone_number && <div className="truncate">{r.phone_number}</div>}
+                  {r.email && <div className="truncate">{r.email}</div>}
+                  {r.location && <div className="col-span-2 truncate">{r.location}</div>}
+                  {r.gstin && <div className="col-span-2 font-mono text-[10px]">GST: {r.gstin}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <GarageFormModal modal={modal} onClose={() => setModal(null)} onSaved={load} />

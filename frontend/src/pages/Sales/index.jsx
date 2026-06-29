@@ -294,121 +294,192 @@ export default function SalesPage() {
               {feed.length === 0 ? 'No sales recorded yet. Click "New Sale" to start.' : 'No records match the current filter.'}
             </div>
           ) : (
-            <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Source</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Items</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Total</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r) => {
-                    const isExpanded = expandedRow === `${r.type}-${r.id}`;
-                    return [
-                      <tr
-                        key={`${r.type}-${r.id}`}
-                        className="border-b border-border hover:bg-bg-hover transition-colors cursor-pointer"
-                        onClick={() => setExpandedRow(isExpanded ? null : `${r.type}-${r.id}`)}
-                      >
-                        <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtD(r.date)}</td>
-                        <td className="px-4 py-3">
-                          <div className="text-gray-100 font-medium">{r.customer_name || '—'}</div>
-                          {r.phone_number && <div className="text-xs text-gray-500">{r.phone_number}</div>}
-                          {r.vehicle_number && <div className="text-xs text-sky-400">{r.vehicle_number}</div>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {r.type === 'standalone' ? (
-                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-900/40 text-blue-300 border border-blue-800">
-                              Direct
-                            </span>
-                          ) : (
-                            <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-violet-900/40 text-violet-300 border border-violet-800">
-                              {r.order_number}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="text-gray-300 text-xs max-w-[200px]">
-                            {(r.items || []).slice(0, 2).map((it, i) => (
-                              <div key={i} className="truncate">{it.product_name} × {it.quantity}</div>
-                            ))}
-                            {(r.items || []).length > 2 && (
-                              <div className="text-gray-500">+{r.items.length - 2} more</div>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="font-semibold text-gray-100">{fmt(r.total_amount)}</span>
-                          {r.payment_method && (
-                            <div className="text-xs text-gray-500">{METHOD_LABEL[r.payment_method] || r.payment_method}</div>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={e => { e.stopPropagation(); downloadSalesInvoice(r); }}
-                              className="p-1.5 text-gray-500 hover:text-blue-400 transition-colors"
-                              title="Download invoice"
-                            >
-                              <Download size={14} />
-                            </button>
-                            {r.type === 'standalone' && r.phone_number && (
-                              <button
-                                onClick={e => { e.stopPropagation(); openWhatsAppForSale(r, toast); }}
-                                className="p-1.5 text-gray-500 hover:text-green-400 transition-colors"
-                                title="Send WhatsApp invoice"
-                              >
-                                <WaIcon />
-                              </button>
-                            )}
-                            {r.type === 'standalone' && (
-                              <button
-                                onClick={e => { e.stopPropagation(); setConfirmDel({ id: r.id, order_number: r.order_number }); }}
-                                className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
-                                title="Delete sale"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            )}
-                            <button className="text-gray-500 p-1">
-                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>,
-                      isExpanded && (
-                        <tr key={`${r.type}-${r.id}-expanded`} className="border-b border-border bg-bg-elev/40">
-                          <td colSpan={6} className="px-6 py-3">
-                            <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Items</div>
-                            <div className="space-y-1">
-                              {(r.items || []).map((it, i) => (
-                                <div key={i} className="flex items-center justify-between text-xs text-gray-300 py-0.5">
-                                  <span>
-                                    <span className="font-medium text-gray-200">{it.product_name}</span>
-                                    {it.brand ? <span className="text-gray-500 ml-1">{it.brand}</span> : null}
-                                    <span className="text-gray-500 ml-1">· {it.unit_amount} {it.unit}</span>
-                                    <span className="text-gray-500 ml-2">× {it.quantity}</span>
-                                  </span>
-                                  <span className="text-sky-400 font-semibold">{fmt(it.line_total)}</span>
-                                </div>
-                              ))}
-                            </div>
-                            {r.notes && (
-                              <div className="mt-2 text-xs text-gray-500">Notes: {r.notes}</div>
+            <>
+              {/* Desktop table */}
+              <div className="hidden xl:block bg-bg-card border border-border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Date</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Source</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">Items</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide">Total</th>
+                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wide"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => {
+                      const isExpanded = expandedRow === `${r.type}-${r.id}`;
+                      return [
+                        <tr
+                          key={`${r.type}-${r.id}`}
+                          className="border-b border-border hover:bg-bg-hover transition-colors cursor-pointer"
+                          onClick={() => setExpandedRow(isExpanded ? null : `${r.type}-${r.id}`)}
+                        >
+                          <td className="px-4 py-3 text-gray-300 whitespace-nowrap">{fmtD(r.date)}</td>
+                          <td className="px-4 py-3">
+                            <div className="text-gray-100 font-medium">{r.customer_name || '—'}</div>
+                            {r.phone_number && <div className="text-xs text-gray-500">{r.phone_number}</div>}
+                            {r.vehicle_number && <div className="text-xs text-sky-400">{r.vehicle_number}</div>}
+                          </td>
+                          <td className="px-4 py-3">
+                            {r.type === 'standalone' ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-900/40 text-blue-300 border border-blue-800">
+                                Direct
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-violet-900/40 text-violet-300 border border-violet-800">
+                                {r.order_number}
+                              </span>
                             )}
                           </td>
-                        </tr>
-                      ),
-                    ];
-                  })}
-                </tbody>
-              </table>
-            </div>
+                          <td className="px-4 py-3">
+                            <div className="text-gray-300 text-xs max-w-[200px]">
+                              {(r.items || []).slice(0, 2).map((it, i) => (
+                                <div key={i} className="truncate">{it.product_name} × {it.quantity}</div>
+                              ))}
+                              {(r.items || []).length > 2 && (
+                                <div className="text-gray-500">+{r.items.length - 2} more</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <span className="font-semibold text-gray-100">{fmt(r.total_amount)}</span>
+                            {r.payment_method && (
+                              <div className="text-xs text-gray-500">{METHOD_LABEL[r.payment_method] || r.payment_method}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={e => { e.stopPropagation(); downloadSalesInvoice(r); }}
+                                className="p-1.5 text-gray-500 hover:text-blue-400 transition-colors"
+                                title="Download invoice"
+                              >
+                                <Download size={14} />
+                              </button>
+                              {r.type === 'standalone' && r.phone_number && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); openWhatsAppForSale(r, toast); }}
+                                  className="p-1.5 text-gray-500 hover:text-green-400 transition-colors"
+                                  title="Send WhatsApp invoice"
+                                >
+                                  <WaIcon />
+                                </button>
+                              )}
+                              {r.type === 'standalone' && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); setConfirmDel({ id: r.id, order_number: r.order_number }); }}
+                                  className="p-1.5 text-gray-500 hover:text-red-400 transition-colors"
+                                  title="Delete sale"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                              <button className="text-gray-500 p-1">
+                                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>,
+                        isExpanded && (
+                          <tr key={`${r.type}-${r.id}-expanded`} className="border-b border-border bg-bg-elev/40">
+                            <td colSpan={6} className="px-6 py-3">
+                              <div className="text-xs text-gray-400 font-medium uppercase tracking-wide mb-2">Items</div>
+                              <div className="space-y-1">
+                                {(r.items || []).map((it, i) => (
+                                  <div key={i} className="flex items-center justify-between text-xs text-gray-300 py-0.5">
+                                    <span>
+                                      <span className="font-medium text-gray-200">{it.product_name}</span>
+                                      {it.brand ? <span className="text-gray-500 ml-1">{it.brand}</span> : null}
+                                      <span className="text-gray-500 ml-1">· {it.unit_amount} {it.unit}</span>
+                                      <span className="text-gray-500 ml-2">× {it.quantity}</span>
+                                    </span>
+                                    <span className="text-sky-400 font-semibold">{fmt(it.line_total)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                              {r.notes && (
+                                <div className="mt-2 text-xs text-gray-500">Notes: {r.notes}</div>
+                              )}
+                            </td>
+                          </tr>
+                        ),
+                      ];
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile/tablet card grid */}
+              <div className="flex flex-col gap-2 xl:hidden">
+                {filtered.map((r) => {
+                  const isExpanded = expandedRow === `${r.type}-${r.id}`;
+                  return (
+                    <div key={`${r.type}-${r.id}`} className="bg-bg-card border border-border rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-100 truncate">{r.customer_name || '—'}</div>
+                          {r.phone_number && <div className="text-xs text-gray-500">{r.phone_number}</div>}
+                          {r.vehicle_number && <div className="text-xs text-sky-400">{r.vehicle_number}</div>}
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {r.type === 'standalone' ? (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-900/40 text-blue-300 border border-blue-800">Direct</span>
+                          ) : (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-violet-900/40 text-violet-300 border border-violet-800">{r.order_number}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="text-xs text-gray-500">{fmtD(r.date)}{r.payment_method ? ` · ${METHOD_LABEL[r.payment_method] || r.payment_method}` : ''}</div>
+                        <div className="text-sm font-bold text-gray-100">{fmt(r.total_amount)}</div>
+                      </div>
+                      <div className="mt-1.5 text-xs text-gray-400">
+                        {(r.items || []).slice(0, 2).map((it, i) => (
+                          <div key={i} className="truncate">{it.product_name} × {it.quantity}</div>
+                        ))}
+                        {(r.items || []).length > 2 && <div className="text-gray-500">+{r.items.length - 2} more</div>}
+                      </div>
+                      {isExpanded && (
+                        <div className="mt-2 pt-2 border-t border-border space-y-1">
+                          {(r.items || []).map((it, i) => (
+                            <div key={i} className="flex items-center justify-between text-xs text-gray-300 py-0.5">
+                              <span>
+                                <span className="font-medium text-gray-200">{it.product_name}</span>
+                                {it.brand ? <span className="text-gray-500 ml-1">{it.brand}</span> : null}
+                                <span className="text-gray-500 ml-1">· {it.unit_amount} {it.unit}</span>
+                                <span className="text-gray-500 ml-2">× {it.quantity}</span>
+                              </span>
+                              <span className="text-sky-400 font-semibold ml-2 shrink-0">{fmt(it.line_total)}</span>
+                            </div>
+                          ))}
+                          {r.notes && <div className="text-xs text-gray-500 mt-1">Notes: {r.notes}</div>}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between mt-2 pt-2 border-t border-border">
+                        <button
+                          onClick={() => setExpandedRow(isExpanded ? null : `${r.type}-${r.id}`)}
+                          className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300"
+                        >
+                          {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          {isExpanded ? 'Less' : 'All items'}
+                        </button>
+                        <div className="flex items-center gap-1">
+                          <button onClick={() => downloadSalesInvoice(r)} className="p-1.5 text-gray-500 hover:text-blue-400" title="Download"><Download size={14} /></button>
+                          {r.type === 'standalone' && r.phone_number && (
+                            <button onClick={() => openWhatsAppForSale(r, toast)} className="p-1.5 text-gray-500 hover:text-green-400" title="WhatsApp"><WaIcon /></button>
+                          )}
+                          {r.type === 'standalone' && (
+                            <button onClick={() => setConfirmDel({ id: r.id, order_number: r.order_number })} className="p-1.5 text-gray-500 hover:text-red-400" title="Delete"><Trash2 size={14} /></button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </>
       )}

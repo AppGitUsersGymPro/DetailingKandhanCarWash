@@ -333,18 +333,17 @@ export default function FinanceDashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-6">
         {/* Income */}
         <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-sm font-semibold text-gray-200">Income — {month}</h2>
-            <div className="flex items-center gap-2">
+          <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <h2 className="text-sm font-semibold text-gray-200 shrink-0">Income — {month}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   placeholder="Search..."
                   value={incomeSearch}
                   onChange={e => setIncomeSearch(e.target.value)}
-                  className="pl-7 pr-3 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-200 focus:outline-none focus:border-accent w-36"
+                  className="pl-7 pr-3 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-200 focus:outline-none focus:border-accent w-28 sm:w-36"
                 />
-
               </div>
               <button
                 onClick={() => exportExcel(income, [
@@ -369,56 +368,93 @@ export default function FinanceDashboard() {
               </button>
             </div>
           </div>
-          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-            {incomeLoading ? <Loading /> : income.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-8">No income records this month</p>
-            ) : (
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-bg-card border-b border-border">
-                  <tr>
-                    {['Date', 'Job Card', 'Customer', 'Total', 'Base', 'GST%', 'GST Amt', 'Paid', 'Base To Collect', 'GST To Collect', 'Status'].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
+          {incomeLoading ? <Loading /> : income.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8">No income records this month</p>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-bg-card border-b border-border">
+                    <tr>
+                      {['Date', 'Job Card', 'Customer', 'Total', 'Base', 'GST%', 'GST Amt', 'Paid', 'Base To Collect', 'GST To Collect', 'Status'].map(h => (
+                        <th key={h} className="px-3 py-2.5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {income.map(r => (
+                      <tr key={r.id} className="hover:bg-bg-hover transition-colors">
+                        <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.date}</td>
+                        <td className="px-3 py-2.5 text-gray-200 font-medium whitespace-nowrap">{r.job_card_number}</td>
+                        <td className="px-3 py-2.5 text-gray-300 max-w-[120px] truncate">{r.customer_name}</td>
+                        <td className="px-3 py-2.5 text-gray-100 font-medium whitespace-nowrap">{fmt(r.total_amount)}</td>
+                        <td className="px-3 py-2.5 text-gray-300 whitespace-nowrap">{fmt(r.base_amount)}</td>
+                        <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.gst_percent}%</td>
+                        <td className="px-3 py-2.5 text-indigo-300 whitespace-nowrap">{fmt(r.gst_amount)}</td>
+                        <td className="px-3 py-2.5 text-emerald-400 whitespace-nowrap">{fmt(r.paid_amount)}</td>
+                        <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.base_to_collect)}</td>
+                        <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.gst_to_collect)}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] border capitalize ${STATUS_CLS[r.payment_status] || ''}`}>
+                            {r.payment_status}
+                          </span>
+                        </td>
+                      </tr>
                     ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {income.map(r => (
-                    <tr key={r.id} className="hover:bg-bg-hover transition-colors">
-                      <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.date}</td>
-                      <td className="px-3 py-2.5 text-gray-200 font-medium whitespace-nowrap">{r.job_card_number}</td>
-                      <td className="px-3 py-2.5 text-gray-300 max-w-[120px] truncate">{r.customer_name}</td>
-                      <td className="px-3 py-2.5 text-gray-100 font-medium whitespace-nowrap">{fmt(r.total_amount)}</td>
-                      <td className="px-3 py-2.5 text-gray-300 whitespace-nowrap">{fmt(r.base_amount)}</td>
-                      <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.gst_percent}%</td>
-                      <td className="px-3 py-2.5 text-indigo-300 whitespace-nowrap">{fmt(r.gst_amount)}</td>
-                      <td className="px-3 py-2.5 text-emerald-400 whitespace-nowrap">{fmt(r.paid_amount)}</td>
-                      <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.base_to_collect)}</td>
-                      <td className="px-3 py-2.5 text-yellow-300 whitespace-nowrap">{fmt(r.gst_to_collect)}</td>
-                      <td className="px-3 py-2.5">
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile card list */}
+              <div className="sm:hidden divide-y divide-border max-h-[400px] overflow-y-auto">
+                {income.map(r => (
+                  <div key={r.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="min-w-0">
+                        <span className="text-xs font-semibold text-gray-200">{r.job_card_number}</span>
+                        {r.vehicle_number && <span className="text-[10px] text-sky-400 ml-2">{r.vehicle_number}</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] border capitalize ${STATUS_CLS[r.payment_status] || ''}`}>
                           {r.payment_status}
                         </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                        <span className="text-[10px] text-gray-500">{r.date}</span>
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-300 truncate mb-2">{r.customer_name}</div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px]">
+                      <div>
+                        <div className="text-[10px] text-gray-500 mb-0.5">Total</div>
+                        <div className="font-semibold text-gray-100">{fmt(r.total_amount)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-500 mb-0.5">Paid</div>
+                        <div className="font-semibold text-emerald-400">{fmt(r.paid_amount)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-gray-500 mb-0.5">Outstanding</div>
+                        <div className="font-semibold text-yellow-300">{fmt(r.outstanding)}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Expense */}
         <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-sm font-semibold text-gray-200">Expenses — {month}</h2>
-            <div className="flex items-center gap-2">
+          <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <h2 className="text-sm font-semibold text-gray-200 shrink-0">Expenses — {month}</h2>
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   placeholder="Search..."
                   value={expSearch}
                   onChange={e => setExpSearch(e.target.value)}
-                  className="pl-7 pr-3 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-200 focus:outline-none focus:border-accent w-32"
+                  className="pl-7 pr-3 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-200 focus:outline-none focus:border-accent w-28 sm:w-32"
                 />
               </div>
               <div className="relative">
@@ -443,57 +479,78 @@ export default function FinanceDashboard() {
               >
                 <Download size={12} /> Excel
               </button>
-              <button size="xs" variant="light" onClick={() => setShowAddExpenseModal(true)} className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors" >
+              <button onClick={() => setShowAddExpenseModal(true)} className="flex items-center gap-1 px-2.5 py-1.5 bg-accent/20 border border-accent/30 rounded-md text-xs text-accent hover:bg-accent/30 transition-colors whitespace-nowrap">
                 Add Expense +
               </button>
-              {showAddExpenseModal && (
-                <AddExpenseModal
-                  onClose={() => setShowAddExpenseModal(false)}
-                  Amount={amount}
-                  Customer={customer}
-                  Date={date}
-                  Category={category}
-                  Reference={reference}
-                  setAmount={setAmount}
-                  setCustomer={setCustomer}
-                  setDate={setDate}
-                  setCategory={setCategory}
-                  setReference={setReference}
-                  onSubmit={handleSubmit}
-                />
-              )}
             </div>
           </div>
-          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-            {expLoading ? <Loading /> : expense.length === 0 ? (
-              <p className="text-sm text-gray-500 text-center py-8">No expense records this month</p>
-            ) : (
-              <table className="w-full text-xs">
-                <thead className="sticky top-0 bg-bg-card border-b border-border">
-                  <tr>
-                    {['Date', 'Description', 'Category', 'Amount', 'Reference'].map(h => (
-                      <th key={h} className="px-3 py-2.5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {expense.map(r => (
-                    <tr key={r.id} className="hover:bg-bg-hover transition-colors">
-                      <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.date}</td>
-                      <td className="px-3 py-2.5 text-gray-200 max-w-[180px] truncate">{r.description}</td>
-                      <td className="px-3 py-2.5">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
-                          {r.category}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-rose-400 font-medium whitespace-nowrap">{fmt(r.amount)}</td>
-                      <td className="px-3 py-2.5 text-gray-500 truncate max-w-[120px]">{r.reference}</td>
+          {showAddExpenseModal && (
+            <AddExpenseModal
+              onClose={() => setShowAddExpenseModal(false)}
+              Amount={amount}
+              Customer={customer}
+              Date={date}
+              Category={category}
+              Reference={reference}
+              setAmount={setAmount}
+              setCustomer={setCustomer}
+              setDate={setDate}
+              setCategory={setCategory}
+              setReference={setReference}
+              onSubmit={handleSubmit}
+            />
+          )}
+          {expLoading ? <Loading /> : expense.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-8">No expense records this month</p>
+          ) : (
+            <>
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto max-h-[400px] overflow-y-auto">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-bg-card border-b border-border">
+                    <tr>
+                      {['Date', 'Description', 'Category', 'Amount', 'Reference'].map(h => (
+                        <th key={h} className="px-3 py-2.5 text-left text-gray-400 font-medium whitespace-nowrap">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {expense.map(r => (
+                      <tr key={r.id} className="hover:bg-bg-hover transition-colors">
+                        <td className="px-3 py-2.5 text-gray-400 whitespace-nowrap">{r.date}</td>
+                        <td className="px-3 py-2.5 text-gray-200 max-w-[180px] truncate">{r.description}</td>
+                        <td className="px-3 py-2.5">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/30 bg-indigo-500/10 text-indigo-300">
+                            {r.category}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-rose-400 font-medium whitespace-nowrap">{fmt(r.amount)}</td>
+                        <td className="px-3 py-2.5 text-gray-500 truncate max-w-[120px]">{r.reference}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Mobile card list */}
+              <div className="sm:hidden divide-y divide-border max-h-[400px] overflow-y-auto">
+                {expense.map(r => (
+                  <div key={r.id} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="text-sm font-semibold text-rose-400">{fmt(r.amount)}</div>
+                      <div className="text-[10px] text-gray-500 shrink-0">{r.date}</div>
+                    </div>
+                    <div className="text-xs text-gray-200 mb-1.5 truncate">{r.description || '—'}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 shrink-0">
+                        {r.category}
+                      </span>
+                      {r.reference && <span className="text-[10px] text-gray-500 truncate">{r.reference}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -508,56 +565,73 @@ export default function FinanceDashboard() {
 
 export function AddExpenseModal({ onClose, Amount, Customer, Date, Category, Reference, setAmount, setCustomer, setDate, setCategory, setReference, onSubmit }) {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-bg-card border border-border rounded-xl p-6 w-full max-w-md">
-        <h2 className="text-lg font-semibold text-gray-100 mb-4">Add Expense</h2>
-        <p className="text-sm text-gray-400 mb-4">Amount Given</p>
-        <input
-          type="number"
-          placeholder="Enter amount"
-          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
-          value={Amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
-        <p className="text-sm text-gray-400 mt-4">Customer Name</p>
-        <input
-          type="text"
-          placeholder="Enter customer name"
-          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
-          value={Customer}
-          onChange={(e) => setCustomer(e.target.value)}
-        />
-        <p className="text-sm text-gray-400 mt-4">Date</p>
-        <input
-          type="date"
-          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
-          value={Date}
-          onChange={(e) => setDate(e.target.value)}
-        />
-        <p className="text-sm text-gray-400 mt-4">Category</p>
-        <select
-          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
-          value={Category}
-          onChange={(e) => setCategory(e.target.value)}
-        >
-          {EXPENSE_CATS.filter(c => c.value).map(c => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
-        <p className="text-sm text-gray-400 mt-4">Reference</p>
-        <input
-          type="text"
-          placeholder="Enter reference"
-          className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
-          value={Reference}
-          onChange={(e) => setReference(e.target.value)}
-        />
-        <button className="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors" onClick={onSubmit}>
-          Record Expense
-        </button>
-        <button onClick={onClose} className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors">
-          Close
-        </button>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-bg-card border border-border rounded-t-2xl sm:rounded-xl p-5 sm:p-6 w-full sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-gray-100">Add Expense</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-200 p-1">✕</button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Amount</p>
+            <input
+              type="number"
+              placeholder="Enter amount"
+              className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+              value={Amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Description / Customer</p>
+            <input
+              type="text"
+              placeholder="Enter description or customer name"
+              className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+              value={Customer}
+              onChange={(e) => setCustomer(e.target.value)}
+            />
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Date</p>
+            <input
+              type="date"
+              className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+              value={Date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Category</p>
+            <select
+              className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+              value={Category}
+              onChange={(e) => setCategory(e.target.value)}
+            >
+              {EXPENSE_CATS.filter(c => c.value).map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Reference</p>
+            <input
+              type="text"
+              placeholder="Enter reference"
+              className="w-full bg-bg-elev border border-border rounded-md px-3 py-2 text-sm text-gray-100 focus:outline-none focus:border-accent"
+              value={Reference}
+              onChange={(e) => setReference(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex gap-2 mt-5">
+          <button className="flex-1 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors" onClick={onSubmit}>
+            Record Expense
+          </button>
+          <button onClick={onClose} className="flex-1 py-2.5 bg-bg-elev border border-border text-gray-300 text-sm font-medium rounded-lg hover:bg-bg-hover transition-colors">
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
