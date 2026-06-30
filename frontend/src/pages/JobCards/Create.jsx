@@ -436,7 +436,7 @@ export default function JobCardCreate() {
   const totalPrice = basePrice + gstAmount;
 
   /* ── Submit ─────────────────────────────────────────────────────────────── */
-  const submit = async () => {
+  const submit = async (withPayment = showPaymentPage) => {
     const e = {};
     if (Object.keys(e).length) { setErrors(e); return; }
     if (selectedServiceIds.length === 0) {
@@ -498,7 +498,7 @@ export default function JobCardCreate() {
           vehicle: vehiclePayload,
           services: selectedServiceIds,
         };
-      const payloadWithPayment = showPaymentPage ? { ...payload, amount_given: amountGiven, payment_type: paymentType } : payload;
+      const payloadWithPayment = withPayment ? { ...payload, amount_given: amountGiven, payment_type: paymentType } : payload;
       const created = await createFullJobCard(payloadWithPayment);
       downloadJobCardInvoice(created);
       toast.success('Job card created — invoice downloaded');
@@ -592,7 +592,7 @@ export default function JobCardCreate() {
             <Step4
               showPaymentPage={showPaymentPage}
               onYes={() => { setShowPaymentPage(true); setAmountGiven(totalPrice); }}
-              onNo={() => submit()}
+              onNo={() => submit(false)}
               paymentType={paymentType}
               setPaymentType={setPaymentType}
               totalPrice={totalPrice}
