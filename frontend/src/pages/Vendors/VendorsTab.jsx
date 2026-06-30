@@ -19,14 +19,14 @@ const fmt = (n) =>
 const fmtShort = (n) => {
   const v = Number(n || 0);
   if (v >= 1_00_000) return `₹${(v / 1_00_000).toFixed(1)}L`;
-  if (v >= 1_000)   return `₹${(v / 1_000).toFixed(1)}K`;
+  if (v >= 1_000) return `₹${(v / 1_000).toFixed(1)}K`;
   return fmt(v);
 };
 
 const STAT_STATUS = {
-  paid:    { label: 'Paid',    bg: 'bg-green-500' },
+  paid: { label: 'Paid', bg: 'bg-green-500' },
   partial: { label: 'Partial', bg: 'bg-amber-500' },
-  unpaid:  { label: 'Unpaid',  bg: 'bg-red-500' },
+  unpaid: { label: 'Unpaid', bg: 'bg-red-500' },
 };
 
 const printWindow = (html) => {
@@ -79,11 +79,11 @@ export default function VendorsTab() {
   const dash = useMemo(() => {
     if (!vendors.length) return null;
     const totalOutstanding = vendors.reduce((s, v) => s + Number(v.outstanding || 0), 0);
-    const totalInvoiced    = vendors.reduce((s, v) => s + Number(v.total_invoiced || 0), 0);
-    const totalPaid        = vendors.reduce((s, v) => s + Number(v.total_paid || 0), 0);
-    const pendingCount     = vendors.filter(v => Number(v.outstanding || 0) > 0).length;
-    const highValue        = [...vendors].sort((a, b) => Number(b.outstanding) - Number(a.outstanding))[0];
-    const totalInvoices    = vendors.reduce((s, v) => s + (v.invoice_stats?.total || 0), 0);
+    const totalInvoiced = vendors.reduce((s, v) => s + Number(v.total_invoiced || 0), 0);
+    const totalPaid = vendors.reduce((s, v) => s + Number(v.total_paid || 0), 0);
+    const pendingCount = vendors.filter(v => Number(v.outstanding || 0) > 0).length;
+    const highValue = [...vendors].sort((a, b) => Number(b.outstanding) - Number(a.outstanding))[0];
+    const totalInvoices = vendors.reduce((s, v) => s + (v.invoice_stats?.total || 0), 0);
     return { totalOutstanding, totalInvoiced, totalPaid, pendingCount, highValue, totalInvoices };
   }, [vendors]);
 
@@ -95,7 +95,7 @@ export default function VendorsTab() {
       r = r.filter(v => v.vendor_name?.toLowerCase().includes(q) || v.vendor_email?.toLowerCase().includes(q));
     }
     if (statusFilter === 'outstanding') r = r.filter(v => Number(v.outstanding || 0) > 0);
-    if (statusFilter === 'clear')       r = r.filter(v => Number(v.outstanding || 0) === 0);
+    if (statusFilter === 'clear') r = r.filter(v => Number(v.outstanding || 0) === 0);
     return r;
   }, [vendors, search, statusFilter]);
 
@@ -140,18 +140,17 @@ export default function VendorsTab() {
         </div>
         <div className="flex items-center gap-1">
           {[
-            { key: 'all',         label: 'All' },
-            { key: 'outstanding', label: 'Has Dues',   cls: 'data-active:bg-amber-900/50 data-active:text-amber-400 data-active:border-amber-700' },
-            { key: 'clear',       label: 'Fully Paid', cls: 'data-active:bg-green-900/50 data-active:text-green-400 data-active:border-green-700' },
+            { key: 'all', label: 'All' },
+            { key: 'outstanding', label: 'Has Dues', cls: 'data-active:bg-amber-900/50 data-active:text-amber-400 data-active:border-amber-700' },
+            { key: 'clear', label: 'Fully Paid', cls: 'data-active:bg-green-900/50 data-active:text-green-400 data-active:border-green-700' },
           ].map(({ key, label }) => (
             <button key={key} onClick={() => setStatusFilter(key)}
-              className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${
-                statusFilter === key
+              className={`px-3 py-1 rounded text-xs font-medium border transition-colors ${statusFilter === key
                   ? key === 'outstanding' ? 'bg-amber-900/50 text-amber-400 border-amber-700'
-                  : key === 'clear'       ? 'bg-green-900/50 text-green-400 border-green-700'
-                  :                         'bg-accent/20 text-accent border-accent/50'
+                    : key === 'clear' ? 'bg-green-900/50 text-green-400 border-green-700'
+                      : 'bg-accent/20 text-accent border-accent/50'
                   : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-border'
-              }`}
+                }`}
             >{label}</button>
           ))}
         </div>
@@ -263,15 +262,13 @@ function VendorCard({ vendor, onEdit, onDelete, onStatement, stmtLoading }) {
   const hasDues = outstanding > 0;
 
   return (
-    <div className={`bg-bg-card border rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg hover:shadow-black/20 ${
-      hasDues ? 'border-amber-800/40 hover:border-amber-700/60' : 'border-border hover:border-accent/30'
-    }`}>
+    <div className={`bg-bg-card border rounded-2xl overflow-hidden flex flex-col transition-all hover:shadow-lg hover:shadow-black/20 ${hasDues ? 'border-amber-800/40 hover:border-amber-700/60' : 'border-border hover:border-accent/30'
+      }`}>
 
       {/* ── Header ── */}
       <div className="p-4 flex items-start gap-3">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold shrink-0 ${
-          hasDues ? 'bg-amber-900/40 text-amber-300' : 'bg-accent/15 text-accent'
-        }`}>
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg font-bold shrink-0 ${hasDues ? 'bg-amber-900/40 text-amber-300' : 'bg-accent/15 text-accent'
+          }`}>
           {initial}
         </div>
         <div className="flex-1 min-w-0">
@@ -324,15 +321,15 @@ function VendorCard({ vendor, onEdit, onDelete, onStatement, stmtLoading }) {
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-gray-500">{stats.total} invoice{stats.total !== 1 ? 's' : ''}</span>
               <div className="flex items-center gap-2 text-xs">
-                {stats.paid > 0    && <span className="text-green-400">●&nbsp;{stats.paid} paid</span>}
+                {stats.paid > 0 && <span className="text-green-400">●&nbsp;{stats.paid} paid</span>}
                 {stats.partial > 0 && <span className="text-amber-400">●&nbsp;{stats.partial} partial</span>}
-                {stats.unpaid > 0  && <span className="text-red-400">●&nbsp;{stats.unpaid} unpaid</span>}
+                {stats.unpaid > 0 && <span className="text-red-400">●&nbsp;{stats.unpaid} unpaid</span>}
               </div>
             </div>
             <div className="flex h-1.5 rounded-full overflow-hidden bg-border gap-px">
-              {stats.paid > 0    && <div className="bg-green-500 rounded-full" style={{ flex: stats.paid }} />}
+              {stats.paid > 0 && <div className="bg-green-500 rounded-full" style={{ flex: stats.paid }} />}
               {stats.partial > 0 && <div className="bg-amber-500 rounded-full" style={{ flex: stats.partial }} />}
-              {stats.unpaid > 0  && <div className="bg-red-500 rounded-full"   style={{ flex: stats.unpaid }} />}
+              {stats.unpaid > 0 && <div className="bg-red-500 rounded-full" style={{ flex: stats.unpaid }} />}
             </div>
           </>
         ) : (
@@ -344,8 +341,8 @@ function VendorCard({ vendor, onEdit, onDelete, onStatement, stmtLoading }) {
       <div className="px-4 py-3 grid grid-cols-3 gap-2 border-b border-border">
         {[
           { label: 'Invoiced', value: vendor.total_invoiced, cls: 'text-gray-300' },
-          { label: 'Paid',     value: vendor.total_paid,     cls: 'text-green-400' },
-          { label: 'Due',      value: vendor.outstanding,    cls: outstanding > 0 ? 'text-amber-400 font-semibold' : 'text-gray-500' },
+          { label: 'Paid', value: vendor.total_paid, cls: 'text-green-400' },
+          { label: 'Due', value: vendor.outstanding, cls: outstanding > 0 ? 'text-amber-400 font-semibold' : 'text-gray-500' },
         ].map(({ label, value, cls }) => (
           <div key={label} className="text-center">
             <div className="text-xs text-gray-500 mb-0.5">{label}</div>
@@ -368,9 +365,9 @@ function VendorCard({ vendor, onEdit, onDelete, onStatement, stmtLoading }) {
           <button onClick={onEdit} className="p-1.5 text-gray-400 hover:text-accent rounded-lg hover:bg-accent/10 transition-colors" title="Edit">
             <Pencil size={14} />
           </button>
-          <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-900/20 transition-colors" title="Delete">
+          {/* <button onClick={onDelete} className="p-1.5 text-gray-400 hover:text-red-400 rounded-lg hover:bg-red-900/20 transition-colors" title="Delete">
             <Trash2 size={14} />
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
@@ -384,9 +381,9 @@ function StatementModal({ statement, onClose }) {
   const { vendor, invoices, summary } = statement;
 
   const statusBadgeCls = (s) =>
-    s === 'paid'    ? 'bg-green-900/40 text-green-400 border border-green-800' :
-    s === 'partial' ? 'bg-amber-900/40 text-amber-400 border border-amber-800' :
-                      'bg-red-900/40 text-red-400 border border-red-800';
+    s === 'paid' ? 'bg-green-900/40 text-green-400 border border-green-800' :
+      s === 'partial' ? 'bg-amber-900/40 text-amber-400 border border-amber-800' :
+        'bg-red-900/40 text-red-400 border border-red-800';
 
   const handlePrint = () => {
     const invoiceRows = invoices.map((inv) => {
@@ -431,16 +428,16 @@ function StatementModal({ statement, onClose }) {
       <div className="space-y-5">
         {/* vendor info */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-bg-elev rounded-lg p-3 text-sm">
-          {[['Vendor', vendor.vendor_name],['GST', vendor.vendor_gst_number],['Phone', vendor.vendor_phone_number],
-            ['Email', vendor.vendor_email],['Address', vendor.vendor_address]].map(([l, v]) => (
+          {[['Vendor', vendor.vendor_name], ['GST', vendor.vendor_gst_number], ['Phone', vendor.vendor_phone_number],
+          ['Email', vendor.vendor_email], ['Address', vendor.vendor_address]].map(([l, v]) => (
             <div key={l}><div className="text-xs text-gray-500 mb-0.5">{l}</div><div className="font-medium text-gray-100 text-sm">{v}</div></div>
           ))}
         </div>
         {/* summary strip */}
         <div className="grid grid-cols-3 gap-3">
           {[['Total Invoiced', summary.total_invoiced, 'text-gray-100'],
-            ['Total Paid', summary.total_paid, 'text-green-400'],
-            ['Outstanding', summary.outstanding, Number(summary.outstanding) > 0 ? 'text-amber-400' : 'text-green-400']
+          ['Total Paid', summary.total_paid, 'text-green-400'],
+          ['Outstanding', summary.outstanding, Number(summary.outstanding) > 0 ? 'text-amber-400' : 'text-green-400']
           ].map(([l, v, cls]) => (
             <div key={l} className="bg-bg-elev rounded-lg p-3 text-center">
               <div className="text-xs text-gray-500 mb-1">{l}</div>
@@ -457,7 +454,7 @@ function StatementModal({ statement, onClose }) {
             <table className="w-full text-sm">
               <thead className="bg-bg-elev border-t border-border">
                 <tr>
-                  {['Invoice #','Date','Total','Paid','Outstanding','Status'].map((h, i) => (
+                  {['Invoice #', 'Date', 'Total', 'Paid', 'Outstanding', 'Status'].map((h, i) => (
                     <th key={h} className={`px-3 py-2 text-gray-300 font-medium ${i >= 2 && i <= 4 ? 'text-right' : 'text-left'}`}>{h}</th>
                   ))}
                 </tr>
@@ -525,11 +522,11 @@ function VendorFormModal({ modal, onClose, onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     const eMap = {};
-    if (!form.vendor_name.trim())         eMap.vendor_name = 'Required';
+    if (!form.vendor_name.trim()) eMap.vendor_name = 'Required';
     if (!form.vendor_phone_number.trim()) eMap.vendor_phone_number = 'Required';
-    if (!form.vendor_email.trim())        eMap.vendor_email = 'Required';
-    if (!form.vendor_address.trim())      eMap.vendor_address = 'Required';
-    if (!form.vendor_gst_number.trim())   eMap.vendor_gst_number = 'Required';
+    if (!form.vendor_email.trim()) eMap.vendor_email = 'Required';
+    if (!form.vendor_address.trim()) eMap.vendor_address = 'Required';
+    if (!form.vendor_gst_number.trim()) eMap.vendor_gst_number = 'Required';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
     setSubmitting(true);
@@ -548,11 +545,11 @@ function VendorFormModal({ modal, onClose, onSaved }) {
     <Modal open={!!modal} onClose={onClose} title={modal?.mode === 'edit' ? 'Edit Vendor' : 'Add Vendor'}
       footer={<><Button variant="secondary" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={submitting}>{modal?.mode === 'edit' ? 'Save' : 'Create'}</Button></>}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Vendor Name"   required error={errors.vendor_name}>          <Input {...f('vendor_name')} /></Field>
-        <Field label="Phone"         required error={errors.vendor_phone_number}>  <Input {...f('vendor_phone_number')} /></Field>
-        <Field label="Email"         required error={errors.vendor_email}>         <Input type="email" {...f('vendor_email')} /></Field>
-        <Field label="GST Number"    required error={errors.vendor_gst_number}>    <Input {...f('vendor_gst_number')} /></Field>
-        <Field label="Address"       required error={errors.vendor_address}>       <Input {...f('vendor_address')} /></Field>
+        <Field label="Vendor Name" required error={errors.vendor_name}>          <Input {...f('vendor_name')} /></Field>
+        <Field label="Phone" required error={errors.vendor_phone_number}>  <Input {...f('vendor_phone_number')} /></Field>
+        <Field label="Email" required error={errors.vendor_email}>         <Input type="email" {...f('vendor_email')} /></Field>
+        <Field label="GST Number" required error={errors.vendor_gst_number}>    <Input {...f('vendor_gst_number')} /></Field>
+        <Field label="Address" required error={errors.vendor_address}>       <Input {...f('vendor_address')} /></Field>
       </form>
     </Modal>
   );

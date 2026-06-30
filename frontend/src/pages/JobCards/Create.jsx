@@ -1172,7 +1172,14 @@ function CashModal({ totalPrice, setAmountGiven, amountGiven }) {
           step="0.01"
           placeholder="0.00"
           value={amountGiven || ''}
-          onChange={(e) => setAmountGiven(parseFloat(e.target.value) || 0)}
+          onChange={(e) => {
+            const value = parseFloat(e.target.value) || 0;
+            if (value > totalPrice) {
+              toast.error('Amount received cannot exceed total price');
+              return;   // ← don't update state, reject the keystroke
+            }
+            setAmountGiven(value);
+          }}
         />
       </Field>
       <Field label="Change to Return">

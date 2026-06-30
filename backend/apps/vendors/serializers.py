@@ -193,7 +193,6 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
                 selling_price=item_data.get('selling_price'),
                 delta=item_data['quantity'],
             )
-        self.recordExpense(invoice)
         return invoice
     
     

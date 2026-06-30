@@ -73,8 +73,8 @@ export default function CustomersVehicles() {
 
       {tab === 'customers' ? <CustomersTab />
         : tab === 'vehicles' ? <VehiclesTab />
-        : tab === 'garages'  ? <GaragesTab />
-        : <AnalyticsTab />}
+          : tab === 'garages' ? <GaragesTab />
+            : <AnalyticsTab />}
     </div>
   );
 }
@@ -84,11 +84,10 @@ function TabBtn({ active, onClick, icon, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-        active
+      className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${active
           ? 'border-accent text-accent'
           : 'border-transparent text-gray-400 hover:text-gray-200'
-      }`}
+        }`}
     >
       {icon}{children}
     </button>
@@ -163,9 +162,9 @@ function CustomersTab() {
           <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent">
             <Pencil size={14} />
           </button>
-          <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400">
+          {/* <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400">
             <Trash2 size={14} />
-          </button>
+          </button> */}
         </div>
       ),
     },
@@ -241,24 +240,24 @@ function CustomersTab() {
 function VehiclesTab() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [loading, setLoading]         = useState(true);
-  const [vehicles, setVehicles]       = useState([]);
-  const [companies, setCompanies]     = useState([]);
-  const [search, setSearch]           = useState('');
-  const [typeFilter, setTypeFilter]   = useState('');
+  const [loading, setLoading] = useState(true);
+  const [vehicles, setVehicles] = useState([]);
+  const [companies, setCompanies] = useState([]);
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
 
   useEffect(() => {
-    listVehicleCompanies({}).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => {});
+    listVehicleCompanies({}).then(d => setCompanies(Array.isArray(d) ? d : [])).catch(() => { });
   }, []);
 
   const load = async () => {
     setLoading(true);
     try {
       const params = {};
-      if (search)        params.search       = search;
-      if (typeFilter)    params.vehicle_type = typeFilter;
-      if (companyFilter) params.company      = companyFilter;
+      if (search) params.search = search;
+      if (typeFilter) params.vehicle_type = typeFilter;
+      if (companyFilter) params.company = companyFilter;
       const data = await listAllVehicles(Object.keys(params).length ? params : undefined);
       setVehicles(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -417,10 +416,10 @@ function VehiclesTab() {
 /* ═══ Garages tab ════════════════════════════════════════════════════════════ */
 function GaragesTab() {
   const toast = useToast();
-  const [loading, setLoading]       = useState(true);
-  const [garages, setGarages]       = useState([]);
-  const [search, setSearch]         = useState('');
-  const [modal, setModal]           = useState(null); // null | { mode:'create'|'edit', data? }
+  const [loading, setLoading] = useState(true);
+  const [garages, setGarages] = useState([]);
+  const [search, setSearch] = useState('');
+  const [modal, setModal] = useState(null); // null | { mode:'create'|'edit', data? }
   const [confirmDel, setConfirmDel] = useState(null);
   const [delLoading, setDelLoading] = useState(false);
 
@@ -460,11 +459,11 @@ function GaragesTab() {
 
   const columns = [
     { key: 'garage_name', header: 'Garage Name', render: (r) => <span className="font-medium text-gray-100">{r.garage_name}</span> },
-    { key: 'name',        header: 'Contact Person', render: (r) => <span className="text-gray-300">{r.name}</span> },
+    { key: 'name', header: 'Contact Person', render: (r) => <span className="text-gray-300">{r.name}</span> },
     { key: 'phone_number', header: 'Phone' },
-    { key: 'email',       header: 'Email',    render: (r) => r.email || <span className="text-gray-500">—</span> },
-    { key: 'location',    header: 'Location', render: (r) => r.location ? <span className="text-gray-400 text-xs">{r.location}</span> : <span className="text-gray-600">—</span> },
-    { key: 'gstin',       header: 'GSTIN',    render: (r) => r.gstin ? <code className="text-xs bg-bg-elev px-1.5 py-0.5 rounded text-gray-400">{r.gstin}</code> : <span className="text-gray-600">—</span> },
+    { key: 'email', header: 'Email', render: (r) => r.email || <span className="text-gray-500">—</span> },
+    { key: 'location', header: 'Location', render: (r) => r.location ? <span className="text-gray-400 text-xs">{r.location}</span> : <span className="text-gray-600">—</span> },
+    { key: 'gstin', header: 'GSTIN', render: (r) => r.gstin ? <code className="text-xs bg-bg-elev px-1.5 py-0.5 rounded text-gray-400">{r.gstin}</code> : <span className="text-gray-600">—</span> },
     {
       key: 'actions',
       header: '',
@@ -570,8 +569,8 @@ function GarageFormModal({ modal, onClose, onSaved }) {
   const submit = async (e) => {
     e.preventDefault();
     const eMap = {};
-    if (!form.name.trim())         eMap.name         = 'Required';
-    if (!form.garage_name.trim())  eMap.garage_name  = 'Required';
+    if (!form.name.trim()) eMap.name = 'Required';
+    if (!form.garage_name.trim()) eMap.garage_name = 'Required';
     if (!form.phone_number.trim()) eMap.phone_number = 'Required';
     setErrors(eMap);
     if (Object.keys(eMap).length) return;
@@ -645,8 +644,8 @@ function GarageFormModal({ modal, onClose, onSaved }) {
 }
 
 /* ═══ Analytics tab ══════════════════════════════════════════════════════════ */
-const CHART_COLORS = ['#6366f1','#10b981','#f59e0b','#06b6d4','#8b5cf6','#f43f5e','#34d399','#fb923c'];
-const fmtRev = (n) => n >= 100000 ? `₹${(n/100000).toFixed(1)}L` : n >= 1000 ? `₹${(n/1000).toFixed(1)}k` : `₹${n}`;
+const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#06b6d4', '#8b5cf6', '#f43f5e', '#34d399', '#fb923c'];
+const fmtRev = (n) => n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : n >= 1000 ? `₹${(n / 1000).toFixed(1)}k` : `₹${n}`;
 
 function ChartCard({ title, children, loading, action }) {
   return (
@@ -694,9 +693,9 @@ function downloadAnalyticsReport(data) {
 </div>
 </div></body></html>`;
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url; a.download = `analytics-${new Date().toISOString().slice(0,10)}.html`;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `analytics-${new Date().toISOString().slice(0, 10)}.html`;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
 }
@@ -704,7 +703,7 @@ function downloadAnalyticsReport(data) {
 function AnalyticsTab() {
   const navigate = useNavigate();
   const toast = useToast();
-  const [data, setData]       = useState(null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -756,7 +755,7 @@ function AnalyticsTab() {
                     formatter={(v) => [fmtRev(v), 'Revenue']}
                     cursor={{ fill: 'rgba(99,102,241,0.08)' }}
                   />
-                  <Bar dataKey="revenue" radius={[0,4,4,0]} maxBarSize={18}>
+                  <Bar dataKey="revenue" radius={[0, 4, 4, 0]} maxBarSize={18}>
                     {data.top_by_revenue.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
                     <LabelList dataKey="revenue" position="right" formatter={fmtRev} style={{ fill: '#c4b5fd', fontSize: 11, fontWeight: 600 }} />
                   </Bar>
@@ -786,7 +785,7 @@ function AnalyticsTab() {
                     formatter={(v) => [v + ' visits', 'Visits']}
                     cursor={{ fill: 'rgba(16,185,129,0.08)' }}
                   />
-                  <Bar dataKey="visits" radius={[0,4,4,0]} maxBarSize={18}>
+                  <Bar dataKey="visits" radius={[0, 4, 4, 0]} maxBarSize={18}>
                     {data.top_by_visits.map((_, i) => <Cell key={i} fill={CHART_COLORS[(i + 2) % CHART_COLORS.length]} />)}
                     <LabelList dataKey="visits" position="right" style={{ fill: '#34d399', fontSize: 11, fontWeight: 600 }} />
                   </Bar>
@@ -804,13 +803,13 @@ function AnalyticsTab() {
             <LineChart data={data.monthly_trend} margin={{ top: 4, right: 20, left: 8, bottom: 4 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#252a36" />
               <XAxis dataKey="month" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis yAxisId="left"  tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
+              <YAxis yAxisId="left" tick={{ fill: '#9ca3af', fontSize: 10 }} axisLine={false} tickLine={false} allowDecimals={false} width={28} />
               <YAxis yAxisId="right" orientation="right" tick={{ fill: '#9ca3af', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} width={52} />
               <Tooltip
                 contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
                 formatter={(v, n) => [n === 'revenue' ? fmtRev(v) : v, n === 'revenue' ? 'Revenue' : 'Job Cards']}
               />
-              <Line yAxisId="left"  type="monotone" dataKey="count"   stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} name="count" />
+              <Line yAxisId="left" type="monotone" dataKey="count" stroke="#6366f1" strokeWidth={2} dot={{ r: 4, fill: '#6366f1' }} name="count" />
               <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2} dot={{ r: 4, fill: '#10b981' }} name="revenue" />
             </LineChart>
           </ResponsiveContainer>
@@ -880,24 +879,24 @@ const fmtDateReport = (s) => {
 
 function CustomerReportTable() {
   const toast = useToast();
-  const [allRows, setAllRows]           = useState([]);
-  const [years, setYears]               = useState([]);
-  const [loading, setLoading]           = useState(false);
+  const [allRows, setAllRows] = useState([]);
+  const [years, setYears] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
-  const [yearFilter, setYearFilter]     = useState('');
-  const [monthFilter, setMonthFilter]   = useState('');   // YYYY-MM
+  const [yearFilter, setYearFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');   // YYYY-MM
   const [lastDaysFilter, setLastDaysFilter] = useState(''); // integer string
-  const [page, setPage]                 = useState(1);
-  const [search, setSearch]             = useState('');
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
 
   const fetchReport = async () => {
     setLoading(true);
     try {
       const params = {};
-      if (statusFilter)   params.status    = statusFilter;
+      if (statusFilter) params.status = statusFilter;
       if (lastDaysFilter) params.last_days = lastDaysFilter;
-      else if (monthFilter) params.month   = monthFilter;
-      else if (yearFilter)  params.year    = yearFilter;
+      else if (monthFilter) params.month = monthFilter;
+      else if (yearFilter) params.year = yearFilter;
       const data = await getCustomerReport(params);
       setAllRows(data.customers || []);
       if (data.available_years?.length) setYears(data.available_years);
@@ -926,14 +925,14 @@ function CustomerReportTable() {
   }, [allRows, search]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage   = Math.min(page, totalPages);
-  const pageRows   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const safePage = Math.min(page, totalPages);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const downloadExcel = async () => {
     const period = lastDaysFilter ? `Last ${lastDaysFilter} Days`
-                 : monthFilter    ? monthFilter
-                 : yearFilter     ? `Year ${yearFilter}`
-                 : 'All Time';
+      : monthFilter ? monthFilter
+        : yearFilter ? `Year ${yearFilter}`
+          : 'All Time';
     const title = `Customer Activity Report — ${period}`;
 
     const headers = ['#', 'Customer Name', 'Phone', 'Email', 'Total Visits', 'Last Visit', 'Total Revenue (₹)', 'Status'];
@@ -948,10 +947,10 @@ function CustomerReportTable() {
       r.is_active ? 'Active' : 'Inactive',
     ]);
 
-    const totalVisits  = dataRows.reduce((s, r) => s + (r[4] || 0), 0);
+    const totalVisits = dataRows.reduce((s, r) => s + (r[4] || 0), 0);
     const totalRevenue = dataRows.reduce((s, r) => s + (r[6] || 0), 0);
-    const totalsRow    = ['', 'TOTAL', '', '', totalVisits, '', totalRevenue, ''];
-    const rangeSuffix  = lastDaysFilter ? `-last${lastDaysFilter}days` : monthFilter ? `-${monthFilter}` : yearFilter ? `-${yearFilter}` : '';
+    const totalsRow = ['', 'TOTAL', '', '', totalVisits, '', totalRevenue, ''];
+    const rangeSuffix = lastDaysFilter ? `-last${lastDaysFilter}days` : monthFilter ? `-${monthFilter}` : yearFilter ? `-${yearFilter}` : '';
 
     await styledXlsxDownload(`customer-report${rangeSuffix}${statusFilter ? '-' + statusFilter : ''}.xlsx`, [{
       name: 'Customer Report',
@@ -1165,11 +1164,10 @@ function CustomerReportTable() {
                   key={i}
                   type="button"
                   onClick={() => setPage(pageNum)}
-                  className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${
-                    pageNum === safePage
+                  className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${pageNum === safePage
                       ? 'bg-accent text-white'
                       : 'text-gray-400 hover:text-gray-100 hover:bg-bg-hover'
-                  }`}
+                    }`}
                 >
                   {pageNum}
                 </button>

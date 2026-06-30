@@ -14,9 +14,9 @@ import { getCustomer, addCustomerAsset, updateAsset, deleteAsset } from '../../a
 import { listJobCards } from '../../api/jobcards';
 const fmtAmt = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 const PAY_CFG = {
-  paid:    { label: 'Paid',    cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  paid: { label: 'Paid', cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
   partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
-  unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
+  unpaid: { label: 'Unpaid', cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
 };
 import { extractError } from '../../api/axios';
 
@@ -100,9 +100,9 @@ export default function CustomerDetail() {
                     <button onClick={() => setVehicleModal({ mode: 'edit', data: v })} className="p-1.5 text-gray-400 hover:text-accent">
                       <Pencil size={14} />
                     </button>
-                    <button onClick={() => setConfirmDel(v)} className="p-1.5 text-gray-400 hover:text-red-400">
+                    {/* <button onClick={() => setConfirmDel(v)} className="p-1.5 text-gray-400 hover:text-red-400">
                       <Trash2 size={14} />
-                    </button>
+                    </button> */}
                   </div>
                 </div>
               ))}
@@ -139,7 +139,7 @@ export default function CustomerDetail() {
                         const pay = j.payment_status || 'unpaid';
                         const cfg = PAY_CFG[pay] || PAY_CFG.unpaid;
                         const total = Number(j.total_amount || 0);
-                        const due   = Number(j.outstanding || 0);
+                        const due = Number(j.outstanding || 0);
                         return (
                           <>
                             <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${cfg.cls}`}>
