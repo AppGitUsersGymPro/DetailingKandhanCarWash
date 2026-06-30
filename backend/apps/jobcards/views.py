@@ -4,7 +4,7 @@ from datetime import timedelta, date as _date
 from decimal import Decimal
 from django.db import transaction
 from django.db.models import Count
-from apps.jobcards.utils import recalculate_total
+from apps.jobcards.utils import recalculate_total, compute_gst_split, recompute_payment_gst
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -281,16 +281,9 @@ class JobCardServiceListCreateView(APIView):
                 JobCardProduct(job_card_service=jc_service, service_product=sp)
                 for sp in ServiceProduct.objects.filter(service=jc_service.service)
             ])
-            self.update_total_price(jobcard)
+            recalculate_total(jobcard)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def update_total_price(self, jobcard):
-        total = sum(
-            s.price_at_time for s in jobcard.job_card_services.all()
-        )
-        jobcard.total_price = total
-        jobcard.save()
 
 
 class JobCardServiceDeleteView(APIView):
@@ -345,11 +338,7 @@ class JobCardServiceDeleteView(APIView):
             )
         jobcard = jc_service.job_card
         jc_service.delete()
-        total = sum(
-            s.price_at_time for s in jobcard.job_card_services.all()
-        )
-        jobcard.total_price = total
-        jobcard.save()
+        recalculate_total(jobcard)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -426,7 +415,9 @@ class JobCardPaymentListCreateView(APIView):
         data['job_card'] = jobcard.id
         serializer = JobCardPaymentSerializer(data=data)
         if serializer.is_valid():
-            payment = serializer.save()
+            amount = Decimal(str(data.get('amount', '0')))
+            gst_col, base_col = compute_gst_split(jobcard, amount)
+            payment = serializer.save(gst_collected=gst_col, base_collected=base_col)
 
             try:
                 from apps.notifications.utils import queue_notification, _get_business_name
@@ -461,10 +452,12 @@ class JobCardPaymentListCreateView(APIView):
 class JobCardPaymentDeleteView(APIView):
     def delete(self, request, pk):
         try:
-            payment = JobCardPayment.objects.get(pk=pk)
+            payment = JobCardPayment.objects.select_related('job_card').get(pk=pk)
         except JobCardPayment.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        job_card = payment.job_card
         payment.delete()
+        recompute_payment_gst(job_card)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class FetchVehicleTypeList(APIView):
@@ -916,10 +909,12 @@ class JobCardSalesProductDeleteView(APIView):
         except JobCardSalesProduct.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        job_card = sp.job_card
         inv = sp.inventory
         inv.quantity_available += sp.quantity
         inv.save(update_fields=['quantity_available'])
         sp.delete()
+        recalculate_total(job_card)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -1303,9 +1298,12 @@ class GaragePaymentView(APIView):
                 continue
 
             pay_this = min(remaining, outstanding)
+            gst_col, base_col = compute_gst_split(jc, pay_this)
             JobCardPayment.objects.create(
                 job_card=jc,
                 amount=pay_this,
+                gst_collected=gst_col,
+                base_collected=base_col,
                 payment_date=payment_date,
                 payment_method=payment_method,
                 notes=notes or 'Garage group payment',

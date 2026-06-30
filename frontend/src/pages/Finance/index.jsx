@@ -174,41 +174,33 @@ export default function FinanceDashboard() {
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('');
   const [reference, setReference] = useState('');
-  // dash
   useEffect(() => {
     let cancelled = false;
     setDashLoading(true);
-    getFinanceDashboard(month)
-      .then(d => { if (!cancelled) setDash(d); })
-      .catch(err => { if (!cancelled) toast.error(extractError(err)); })
-      .finally(() => { if (!cancelled) setDashLoading(false); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month]);
-
-  // income
-  useEffect(() => {
-    let cancelled = false;
     setIncLoading(true);
-    getFinanceIncome({ month, search: incomeSearch })
-      .then(d => { if (!cancelled) setIncome(Array.isArray(d) ? d : []); })
-      .catch(err => { if (!cancelled) toast.error(extractError(err)); })
-      .finally(() => { if (!cancelled) setIncLoading(false); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, incomeSearch]);
-
-  // expense
-  useEffect(() => {
-    let cancelled = false;
     setExpLoading(true);
-    getFinanceExpense({ month, search: expSearch, category: expCat })
-      .then(d => { if (!cancelled) setExpense(Array.isArray(d) ? d : []); })
+    Promise.all([
+      getFinanceDashboard(month),
+      getFinanceIncome({ month, search: incomeSearch }),
+      getFinanceExpense({ month, search: expSearch, category: expCat }),
+    ])
+      .then(([d, inc, exp]) => {
+        if (cancelled) return;
+        setDash(d);
+        setIncome(Array.isArray(inc) ? inc : []);
+        setExpense(Array.isArray(exp) ? exp : []);
+      })
       .catch(err => { if (!cancelled) toast.error(extractError(err)); })
-      .finally(() => { if (!cancelled) setExpLoading(false); });
+      .finally(() => {
+        if (!cancelled) {
+          setDashLoading(false);
+          setIncLoading(false);
+          setExpLoading(false);
+        }
+      });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, expSearch, expCat]);
+  }, [month, incomeSearch, expSearch, expCat]);
 
   const tbc = dash?.to_be_collected || {};
   const col = dash?.collected || {};

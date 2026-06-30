@@ -2,13 +2,14 @@ from calendar import monthrange
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, date, timedelta
 
-from django.db.models import F, Q, DecimalField, Sum, Count, Max
+from django.db.models import F, Q, DecimalField, Sum, Count, Max, Prefetch
+from django.db.models.functions import ExtractMonth
 from apps.finance.serializers import ExpenseSerializer
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 
-from apps.jobcards.models import JobCard, JobCardPayment, JobCardProductUsage, SalesOrder
+from apps.jobcards.models import JobCard, JobCardPayment, JobCardProductUsage, SalesOrder, SalesOrderItem
 from apps.employees.models import SalaryTransaction, SalaryAdvance
 from apps.vendors.models import InvoicePayment
 from apps.finance.models import Expense
@@ -104,131 +105,99 @@ class FinanceDashboardView(APIView):
         if year is None:
             return Response({'error': 'Invalid month format. Use YYYY-MM'}, status=status.HTTP_400_BAD_REQUEST)
 
-        current_year      = date.today().year
-        end_of_month      = date(year, month, monthrange(year, month)[1])
-        end_of_prev_month = date(year, month, 1) - timedelta(days=1)
+        current_year = date.today().year
 
-        # ── Outstanding (cumulative, still owed right now as of end of month).
-        # Drops when payments come in this month. Drives the "Outstanding" tile.
-        out_total, _, _ = _outstanding_thru(end_of_month)
+        # ── Chart maps first (4 queries) ─────────────────────────────────
+        # Run these before tile queries so we can reuse them when year == current_year.
+        jc_income_map = {
+            row['m']: row['t']
+            for row in JobCard.objects
+                .filter(job_card_date__year=current_year, total_amount__isnull=False)
+                .annotate(m=ExtractMonth('job_card_date'))
+                .values('m')
+                .annotate(t=Sum('total_amount'))
+        }
+        so_map = {
+            row['m']: row['t']
+            for row in SalesOrder.objects
+                .filter(sale_date__year=current_year)
+                .annotate(m=ExtractMonth('sale_date'))
+                .values('m')
+                .annotate(t=Sum('total_amount'))
+        }
+        jc_collected_map = {
+            row['m']: row['t']
+            for row in JobCardPayment.objects
+                .filter(payment_date__year=current_year)
+                .annotate(m=ExtractMonth('payment_date'))
+                .values('m')
+                .annotate(t=Sum('amount'))
+        }
+        expense_map = {
+            row['m']: row['t']
+            for row in Expense.objects
+                .filter(date__year=current_year)
+                .annotate(m=ExtractMonth('date'))
+                .values('m')
+                .annotate(t=Sum('amount'))
+        }
 
-        # ── To Be Collected (this-month obligation snapshot).
-        # = outstanding carried in from previous months  +  full billed amount
-        #   of JCs created this month (regardless of payments this month).
-        # Does NOT decrease when this month's payments are received; it only
-        # rolls forward when the month changes.
-        prev_total, prev_base, prev_gst = _outstanding_thru(end_of_prev_month)
-        this_total = this_base = this_gst = Decimal('0')
-        this_month_jcs = JobCard.objects.filter(
+        # ── Tile values: derive from maps when viewing current year ───────
+        if year == current_year:
+            so_month_total   = so_map.get(month)      or Decimal('0')
+            expense_of_month = expense_map.get(month) or Decimal('0')
+        else:
+            so_month_total   = SalesOrder.objects.filter(
+                sale_date__year=year, sale_date__month=month,
+            ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+            expense_of_month = _expense_for_period(year, month)
+
+        # ── To be collected: billed in this month ────────────────────────
+        jc_tbc = JobCard.objects.filter(
             job_card_date__year=year,
             job_card_date__month=month,
-        ).prefetch_related('job_card_services')
-        for jc in this_month_jcs:
-            base, gst, total = _jc_base_gst_total(jc)
-            this_total += total
-            this_base  += base
-            this_gst   += gst
-        direct_sales_order = SalesOrder.objects.filter(
-            sale_date__year = year,
-            sale_date__month = month,
+            total_amount__isnull=False,
         ).aggregate(
-    total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
-        tbc_total = prev_total + this_total + direct_sales_order
-        tbc_base  = prev_base  + this_base + direct_sales_order
-        tbc_gst   = prev_gst   + this_gst
-        # ── Collected this month: payments whose payment_date falls in this
-        # month (regardless of when the JC was created). GST-first split needs
-        # the cumulative paid for each JC before this payment.
-        col_total = col_base = col_gst = Decimal('0')
-
-        month_pays = JobCardPayment.objects.filter(
-            payment_date__year=year,
-            payment_date__month=month,
-        ).select_related('job_card').prefetch_related(
-            'job_card__job_card_services',
-            'job_card__payments',
+            total=Sum('total_amount'),
+            base=Sum('base_amount'),
+            gst=Sum('gst_amount'),
         )
 
-        jc_cache = {}  # jc_id -> (gst_amount, payments_chronological)
-        for p in month_pays:
-            jc_id = p.job_card_id
-            if jc_id not in jc_cache:
-                _, gst_amt, _ = _jc_base_gst_total(p.job_card)
-                ordered = sorted(
-                    p.job_card.payments.all(),
-                    key=lambda x: (x.payment_date, x.created_at),
-                )
-                jc_cache[jc_id] = (gst_amt, ordered)
-            gst_amt, ordered = jc_cache[jc_id]
+        tbc_total = (jc_tbc['total'] or Decimal('0')) + so_month_total
+        tbc_base  = (jc_tbc['base']  or Decimal('0')) + so_month_total
+        tbc_gst   =  jc_tbc['gst']   or Decimal('0')
 
-            cumulative_before = Decimal('0')
-            for pp in ordered:
-                if pp.id == p.id:
-                    break
-                cumulative_before += pp.amount
+        # ── Collected: read stored gst_collected / base_collected ────────
+        payment_data = JobCardPayment.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month,
+        ).aggregate(
+            total_collected=Sum('amount'),
+            gst_collected=Sum('gst_collected'),
+            base_collected=Sum('base_collected'),
+        )
 
-            gst_portion, base_portion = _allocate_gst_first(p.amount, gst_amt, cumulative_before)
-            col_total += p.amount
-            col_base  += base_portion
-            col_gst   += gst_portion
-
-        col_total += SalesOrder.objects.filter(
-            sale_date__year = year,
-            sale_date__month = month
-        ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
-        
-        col_base += SalesOrder.objects.filter(
-            sale_date__year = year,
-            sale_date__month = month
-        ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
-        expense_of_month  = _expense_for_period(year, month)
+        jc_col_total      = payment_data['total_collected'] or Decimal('0')
+        col_total         = jc_col_total + so_month_total
+        col_gst           = (payment_data['gst_collected']  or Decimal('0')).quantize(Decimal('0.01'))
+        col_base          = (payment_data['base_collected'] or Decimal('0')) + so_month_total
+        outstanding_month = tbc_total - col_total
         net_savings       = col_base - expense_of_month
-        outstanding_month = out_total
 
-        # ── Yearly income (billed, current year) ─────────
-        year_jcs = JobCard.objects.filter(
-            job_card_date__year=current_year,
-        ).prefetch_related('job_card_services', 'sales_products')
-        yearly_income = Decimal('0')
-        for jc in year_jcs:
-            yearly_income += sum(s.price_at_time for s in jc.job_card_services.all())
-            yearly_income += sum(s.quantity * s.unit_price for s in jc.sales_products.all())
-        yearly_income += SalesOrder.objects.filter(
-            sale_date__year = current_year,
-            ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
-        # ── Monthly chart (12 months of current year) ────
-        # income    = billed for JCs created in that month (what was sold).
-        # collected = payments received in that month (when cash came in).
+        yearly_income = (
+            sum(jc_income_map.values(), Decimal('0')) +
+            sum(so_map.values(), Decimal('0'))
+        )
+
         monthly_chart = []
         for m in range(1, 13):
-            m_jcs = JobCard.objects.filter(
-                job_card_date__year=current_year,
-                job_card_date__month=m,
-            ).prefetch_related('job_card_services','sales_products')
-
-            m_income = Decimal('0')
-            for jc in m_jcs:
-                m_income += sum(s.price_at_time for s in jc.job_card_services.all())
-                m_income += sum(s.unit_price * s.quantity for s in jc.sales_products.all())
-            m_collected = JobCardPayment.objects.filter(
-                payment_date__year=current_year,
-                payment_date__month=m,
-            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-            m_collected += SalesOrder.objects.filter(
-                sale_date__year = current_year,
-                sale_date__month = m,
-            ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
-            m_income += SalesOrder.objects.filter(
-                sale_date__year = current_year,
-                sale_date__month = m,
-            ).aggregate(total=Sum(F('items__quantity') * F('items__unit_price'), output_field=DecimalField()))['total'] or Decimal('0')
-            m_expense = _expense_for_period(current_year, m)
-            m_savings = m_collected - m_expense
-
+            m_collected = (jc_collected_map.get(m) or Decimal('0')) + (so_map.get(m) or Decimal('0'))
+            m_expense   = expense_map.get(m) or Decimal('0')
+            m_savings   = m_collected - m_expense
             monthly_chart.append({
                 'month':     MONTH_NAMES[m - 1],
                 'month_key': f'{current_year}-{m:02d}',
-                'income':    float(m_income),
+                'income':    float(m_collected),
                 'expense':   float(m_expense),
                 'savings':   float(m_savings),
             })
@@ -269,8 +238,8 @@ class FinanceIncomeView(APIView):
             'job_card__customer_asset__customer',
         ).prefetch_related(
             'job_card__job_card_services__service',
+            'job_card__payments',
         )
-
 
         if search:
             pay_qs = pay_qs.filter(
@@ -279,36 +248,32 @@ class FinanceIncomeView(APIView):
                 Q(job_card__customer_asset__vehicle_number__icontains=search)
             )
 
-        # Cache per-JC totals + chronological payment list so outstanding-after-this-payment
-        # can be computed cheaply when multiple payments belong to the same job card.
         jc_cache = {}
 
         results = []
         for p in pay_qs.order_by('-payment_date', '-created_at'):
             jc = p.job_card
             if jc.id not in jc_cache:
-                base, gst, total, _ = _jc_financials(jc)
-                ordered_pays = list(jc.payments.order_by('payment_date', 'created_at'))
+                base  = jc.base_amount  or Decimal('0')
+                gst   = jc.gst_amount   or Decimal('0')
+                total = jc.total_amount or Decimal('0')
+                ordered_pays = sorted(jc.payments.all(), key=lambda x: (x.payment_date, x.created_at))
                 jc_cache[jc.id] = {
                     'base': base, 'gst': gst, 'total': total,
                     'ordered_pays': ordered_pays,
                 }
             info = jc_cache[jc.id]
 
-            cumulative = Decimal('0')
+            cumulative_gst  = Decimal('0')
+            cumulative_base = Decimal('0')
             for pp in info['ordered_pays']:
-                cumulative += pp.amount
+                cumulative_gst  += pp.gst_collected  or Decimal('0')
+                cumulative_base += pp.base_collected or Decimal('0')
                 if pp.id == p.id:
                     break
 
-            # GST-first allocation: payments clear the GST liability first, then base.
-            jc_gst, jc_base, jc_total = info['gst'], info['base'], info['total']
-            if cumulative <= jc_gst:
-                gst_to_collect  = jc_gst - cumulative
-                base_to_collect = jc_base
-            else:
-                gst_to_collect  = Decimal('0')
-                base_to_collect = max(Decimal('0'), jc_total - cumulative)
+            gst_to_collect  = max(Decimal('0'), info['gst']  - cumulative_gst)
+            base_to_collect = max(Decimal('0'), info['base'] - cumulative_base)
             outstanding_after = gst_to_collect + base_to_collect
 
             pstatus = 'paid' if outstanding_after <= 0 else 'partial'
@@ -324,10 +289,10 @@ class FinanceIncomeView(APIView):
                 'customer_name':     jc.customer_asset.customer.customer_name if jc.customer_asset else '',
                 'vehicle_number':    jc.customer_asset.vehicle_number if jc.customer_asset else '',
                 'services':          service_names,
-                'base_amount':       str(jc_base),
+                'base_amount':       str(info['base']),
                 'gst_percent':       str(jc.gst_percent),
-                'gst_amount':        str(jc_gst),
-                'total_amount':      str(jc_total),
+                'gst_amount':        str(info['gst']),
+                'total_amount':      str(info['total']),
                 'paid_amount':       str(p.amount),
                 'base_to_collect':   str(base_to_collect),
                 'gst_to_collect':    str(gst_to_collect),
@@ -337,9 +302,11 @@ class FinanceIncomeView(APIView):
                 'category':          'Job Card',
             })
         sales_qs = SalesOrder.objects.filter(
-            sale_date__year = year,
-            sale_date__month = month,
-        ).prefetch_related('items__inventory__product')
+            sale_date__year=year,
+            sale_date__month=month,
+        ).prefetch_related(
+            Prefetch('items', queryset=SalesOrderItem.objects.select_related('inventory__product'))
+        )
 
         if search:
             sales_qs = sales_qs.filter(
@@ -381,75 +348,33 @@ class FinanceExpenseView(APIView):
         category = request.query_params.get('category', '').strip().lower()
         search   = request.query_params.get('search', '').strip().lower()
 
-        results = []
+        CAT_LABEL = {
+            'salary':         'Salary',
+            'advance':        'Advance',
+            'vendor_invoice': 'Vendor Invoice',
+        }
 
-        if not category or category == 'salary':
-            for s in Expense.objects.filter(
-                date__year=year,
-                date__month=month,
-                category = 'salary',
-            ).order_by('-date'):
-                desc = s.description
-                if not search or search in desc.lower():
-                    results.append({
-                        'id':          s.id,
-                        'date':        s.date.isoformat(),
-                        'description': s.customer,
-                        'amount':      str(s.amount),
-                        'category':    'Salary',
-                        'reference':   s.reference,
-                    })
+        qs = Expense.objects.filter(
+            date__year=year, date__month=month
+        ).order_by('-date')
+        if category:
+            qs = qs.filter(category=category)
+        if search:
+            qs = qs.filter(
+                Q(customer__icontains=search) | Q(description__icontains=search)
+            )
 
-        if not category or category == 'advance':
-            for a in Expense.objects.filter(
-                category = "advance",
-                date__year=year,
-                date__month=month,
-            ).order_by('-date'):
-                desc = f"Advance – {a.customer}"
-                if not search or search in desc.lower():
-                    results.append({
-                        'id':          f'adv-{a.id}',
-                        'date':        a.date.isoformat(),
-                        'description': a.customer,
-                        'amount':      str(a.amount),
-                        'category':    'Advance',
-                        'reference':   a.id,
-                    })
-
-        if not category or category == 'vendor_invoice':
-            for ip in Expense.objects.filter(
-                date__year=year,
-                date__month=month,
-                category = 'vendor_invoice',
-            ).order_by('-date'):
-                desc = ip.description
-                if not search or search in desc.lower():
-                    results.append({
-                        'id':          f'inv-{ip.id}',
-                        'date':        ip.date.isoformat(),
-                        'description': ip.customer,
-                        'amount':      str(ip.amount),
-                        'category':    'Vendor Invoice',
-                        'reference':   ip.reference,
-                    })
-
-        if not category or category == "others":
-            for e in Expense.objects.filter(
-                date__year=year,
-                date__month=month,
-            ).order_by('-date'):
-                desc = e.description
-                if not search or search in desc.lower():
-                    results.append({
-                        'id':          f'exp-{e.id}',
-                        'date':        e.date.isoformat(),
-                        'description': e.customer,
-                        'amount':      str(e.amount),
-                        'category':    e.category,
-                        'reference':   e.reference or '',
-                    })
-        results.sort(key=lambda x: x['date'], reverse=True)   
+        results = [
+            {
+                'id':          e.id,
+                'date':        e.date.isoformat(),
+                'description': e.customer or '',
+                'amount':      str(e.amount),
+                'category':    CAT_LABEL.get(e.category, e.category or 'Other'),
+                'reference':   e.reference or '',
+            }
+            for e in qs
+        ]
         return Response(results)
     
     def post(self, request):
@@ -486,25 +411,41 @@ class DailyReportView(APIView):
         else:
             report_date = date.today()
 
-        # ── Job cards created on this date ──────────────────────────────
+        # ── Summary totals via aggregates (no Python loop needed) ──────
+        jc_billed = JobCard.objects.filter(
+            job_card_date=report_date,
+            total_amount__isnull=False,
+        ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+
+        so_today_total = SalesOrder.objects.filter(
+            sale_date=report_date,
+        ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+
+        total_billed = jc_billed + so_today_total
+
+        jc_collected_summary = JobCardPayment.objects.filter(
+            job_card__job_card_date=report_date,
+        ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+
+        total_collected = jc_collected_summary + so_today_total
+
+        # ── Per-JC detail for service breakdown and pending list ─────────
         day_jcs = JobCard.objects.filter(
             job_card_date=report_date,
         ).prefetch_related('job_card_services__service', 'payments').select_related(
             'customer_asset__customer'
         )
 
-        total_billed    = Decimal('0')
-        total_collected = Decimal('0')
-        service_map     = {}   # service_name -> {jobs, billed, collected}
-        pending_sales   = []
+        service_map   = {}
+        pending_sales = []
+        vehicles_serviced = 0
 
         for jc in day_jcs:
-            base, gst, total, paid = _jc_financials(jc)
+            vehicles_serviced += 1
+            total = jc.total_amount or Decimal('0')
+            paid  = sum(p.amount for p in jc.payments.all())
             outstanding = total - paid
-            total_billed    += total
-            total_collected += paid
 
-            # Service-level revenue + collection split
             for svc in jc.job_card_services.all():
                 sname = svc.service.service_name
                 if sname not in service_map:
@@ -515,7 +456,6 @@ class DailyReportView(APIView):
                     }
                 service_map[sname]['jobs'] += 1
                 service_map[sname]['billed'] += svc.price_at_time
-                # Proportional collection
                 if total > 0:
                     service_map[sname]['collected'] += (
                         (svc.price_at_time / total) * paid
@@ -535,23 +475,29 @@ class DailyReportView(APIView):
                     'outstanding': str(outstanding),
                 })
 
-        # ── Payment mode breakdown (payments for job cards opened on report_date) ──
-        # Using job_card__job_card_date so the breakdown is consistent with
-        # total_collected in the summary (both are based on job cards opened today).
-        mode_qs = JobCardPayment.objects.filter(
-            job_card__job_card_date=report_date,
-        ).values('payment_method').annotate(
-            amount=Sum('amount'),
-            count=Count('id'),
-        ).order_by('-amount')
-
-        payment_breakdown = [
-            {
-                'method': pm['payment_method'],
-                'amount': str(pm['amount'] or Decimal('0')),
+        # ── Payment mode breakdown (JC payments + SO sales on report_date) ──
+        payment_map = {}
+        for pm in JobCardPayment.objects.filter(
+            payment_date=report_date,
+        ).values('payment_method').annotate(amount=Sum('amount'), count=Count('id')):
+            payment_map[pm['payment_method']] = {
+                'amount': pm['amount'] or Decimal('0'),
                 'count':  pm['count'],
             }
-            for pm in mode_qs
+        for pm in SalesOrder.objects.filter(
+            sale_date=report_date,
+        ).values('payment_method').annotate(amount=Sum('total_amount'), count=Count('id')):
+            method = pm['payment_method']
+            so_amt = pm['amount'] or Decimal('0')
+            if method in payment_map:
+                payment_map[method]['amount'] += so_amt
+                payment_map[method]['count']  += pm['count']
+            else:
+                payment_map[method] = {'amount': so_amt, 'count': pm['count']}
+
+        payment_breakdown = [
+            {'method': m, 'amount': str(d['amount']), 'count': d['count']}
+            for m, d in sorted(payment_map.items(), key=lambda x: -x[1]['amount'])
         ]
 
         # ── Expenses paid out today ──────────────────────────────────────
@@ -586,16 +532,20 @@ class DailyReportView(APIView):
 
         total_expenses = sum((Decimal(e['amount']) for e in expense_items), Decimal('0'))
 
-        # ── Flow statement (all payment modes) ──────────────────────────
-        # Total collected for job cards opened on this date (all modes)
-        collected_today = JobCardPayment.objects.filter(
-            job_card__job_card_date=report_date,
+        # ── Flow statement: JC payments by payment_date + SO sales by sale_date ─
+        jc_collected_today = JobCardPayment.objects.filter(
+            payment_date=report_date,
         ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        collected_today = jc_collected_today + so_today_total
 
-        # Opening balance = all payments received for job cards before this date − all expenses before this date
-        collected_before = JobCardPayment.objects.filter(
-            job_card__job_card_date__lt=report_date,
+        jc_collected_before = JobCardPayment.objects.filter(
+            payment_date__lt=report_date,
         ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        so_before_total = SalesOrder.objects.filter(
+            sale_date__lt=report_date,
+        ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+        collected_before = jc_collected_before + so_before_total
+
         exp_before  = _expense_total_before_date(report_date)
         opening_bal = collected_before - exp_before
         closing_bal = opening_bal + collected_today - total_expenses
@@ -644,7 +594,7 @@ class DailyReportView(APIView):
                 'total_billed':      str(total_billed),
                 'total_collected':   str(total_collected),
                 'outstanding':       str(total_billed - total_collected),
-                'vehicles_serviced': day_jcs.count(),
+                'vehicles_serviced': vehicles_serviced,
             },
             'payment_breakdown': payment_breakdown,
             'service_revenue':   service_revenue,

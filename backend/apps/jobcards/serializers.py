@@ -222,7 +222,7 @@ class JobCardCoreSerializer(serializers.Serializer):
     )
     employee         = serializers.IntegerField(required=False, allow_null=True)
     vehicle_sub_type = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    total_amount = serializers.DecimalField(max_digits = 10, decimal_places = 2)
+    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
 
 
 class FullJobCardCreateSerializer(serializers.Serializer):
@@ -356,6 +356,9 @@ class FullJobCardCreateSerializer(serializers.Serializer):
             ])
         
         
+        from .utils import recalculate_total
+        recalculate_total(job_card)
+
         jobcard_id = job_card.id
         amount_given = validated_data.get('amount_given')
         payment_method = validated_data.get('payment_type', 'cash') or 'cash'

@@ -30,6 +30,8 @@ class JobCard(models.Model):
     employee         = models.ForeignKey('employees.Employee', on_delete=models.PROTECT)
     vehicle_sub_type = models.CharField(max_length=20, choices=VEHICLE_SUB_TYPE_CHOICES, blank=True, null=True)
     garage_owner     = models.ForeignKey('customers.GarageOwner', on_delete=models.PROTECT, blank=True, null=True, related_name='job_cards')
+    base_amount  = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    gst_amount   = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     total_amount = models.DecimalField(max_digits = 10, decimal_places = 2, blank = True , null = True)
     share_token  = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
@@ -89,6 +91,8 @@ class JobCardPayment(models.Model):
     ]
     job_card       = models.ForeignKey(JobCard, related_name='payments', on_delete=models.CASCADE)
     amount         = models.DecimalField(max_digits=10, decimal_places=2)
+    gst_collected  = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    base_collected = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     payment_date   = models.DateField()
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='cash')
     notes          = models.TextField(blank=True)

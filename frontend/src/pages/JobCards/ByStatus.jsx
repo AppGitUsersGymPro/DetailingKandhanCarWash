@@ -138,7 +138,7 @@ export default function JobCardsByStatus() {
     },
     { key: 'job_card_date', header: 'Date' },
     {
-      key: 'total_price',
+      key: 'total_amount',
       header: 'Total / Due',
       render: (r) => {
         const due = Number(r.outstanding || 0);
