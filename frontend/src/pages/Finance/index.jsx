@@ -270,7 +270,7 @@ export default function FinanceDashboard() {
               <AlertCircle size={12} /> To Be Collected
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <MetricBox label="Total Outstanding" value={fmt(tbc.total)} accent="yellow" loading={dashLoading} />
+              <MetricBox label="Total to be Collected" value={fmt(tbc.total)} accent="yellow" loading={dashLoading} />
               <MetricBox label="Base (excl. GST)" value={fmt(tbc.base)} accent="yellow" loading={dashLoading} />
               <MetricBox label="GST Outstanding" value={fmt(tbc.gst)} accent="yellow" loading={dashLoading} />
             </div>

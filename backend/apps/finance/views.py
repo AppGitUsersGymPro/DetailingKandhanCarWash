@@ -457,6 +457,7 @@ class FinanceExpenseView(APIView):
             for e in Expense.objects.filter(
                 date__year=year,
                 date__month=month,
+                category = 'others',
             ).order_by('-date'):
                 desc = e.description
                 if not search or search in desc.lower():

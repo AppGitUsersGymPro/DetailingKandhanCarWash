@@ -82,7 +82,10 @@ class JobCardListCreateView(APIView):
         date_to     = request.query_params.get('date_to')
         if request.GET:
             if job_status:
-                qs = qs.filter(job_card_status=job_status)
+                if date_param:
+                    qs = qs.filter(job_card_status=job_status, job_card_date = date_param)
+                else:
+                    qs = qs.filter(job_card_status=job_status, job_card_date__lte = _date.today(), job_card_date__gte = _date.today()-timedelta(days=7))
             if date_param:
                 qs = qs.filter(job_card_date=date_param)
             if date_from:

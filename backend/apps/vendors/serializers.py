@@ -108,7 +108,17 @@ class InvoicePaymentSerializer(serializers.ModelSerializer):
         model = InvoicePayment
         fields = '__all__'
         read_only_fields = ('invoice', 'created_at')
-
+    def create(self, validated_data):
+        txn = InvoicePayment.objects.create(** validated_data)
+        Expense.objects.create(
+            amount = txn.amount,
+            customer = txn.invoice.vendor.vendor_name,
+            date = txn.payment_date,
+            category = "vendor_invoice",
+            reference = txn.invoice.invoice_number,
+            description = txn.invoice.vendor_invoice_id
+        )
+        return txn
 
 class InvoiceItemSerializer(serializers.ModelSerializer):
     product_name = serializers.SerializerMethodField()
@@ -186,15 +196,7 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         self.recordExpense(invoice)
         return invoice
     
-    def recordExpense(self, invoice):
-        Expense.objects.create(
-            amount = invoice.total_amount,
-            customer = invoice.vendor.vendor_name,
-            date = invoice.invoice_date,
-            category = "vendor_invoice",
-            reference = invoice.invoice_number,
-            description = invoice.vendor_invoice_id
-        )
+    
 
     def update(self, instance, validated_data):
         items_data = validated_data.pop('items')
@@ -219,16 +221,6 @@ class InvoiceCreateSerializer(serializers.ModelSerializer):
         instance.total_amount     = validated_data.get('total_amount', instance.total_amount)
         instance.invoice_date     = validated_data.get('invoice_date', instance.invoice_date)
         instance.save()
-
-        Expense.objects.filter(
-        reference=instance.invoice_number,
-        category='vendor_invoice',
-        ).update(
-            amount=instance.total_amount,
-            customer=instance.vendor.vendor_name,
-            date=instance.invoice_date,
-            description=instance.vendor_invoice_id,
-        )
 
         for item_data in items_data:
             InvoiceItem.objects.create(invoice=instance, **item_data)
