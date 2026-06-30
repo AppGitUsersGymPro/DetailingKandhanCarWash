@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  ChevronLeft, ChevronRight, AlertCircle,
+  ChevronLeft, ChevronRight,
   CalendarDays, ArrowLeft, Pencil, Trash2, Clock, Users,
 } from 'lucide-react';
 import Button from '../../components/Button';
@@ -59,11 +59,6 @@ const MONTHS = [
 
 const EMP_TYPE_LABEL = { full_time: 'Full-time', part_time: 'Part-time', contractor: 'Contractor' };
 
-const EMP_STATUS_STYLE = {
-  active:   'bg-emerald-900/30 text-emerald-400 border-emerald-700/40',
-  inactive: 'bg-red-900/30 text-red-400 border-red-700/40',
-  on_leave: 'bg-yellow-900/30 text-yellow-400 border-yellow-700/40',
-};
 
 const AVATAR_COLORS = [
   'bg-accent/20 text-accent',
@@ -86,10 +81,6 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function nowTimeStr() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
 
 function fmtMins(mins) {
   if (!mins || mins <= 0) return null;
@@ -138,48 +129,32 @@ export default function AttendanceTab() {
 
   const [employees, setEmployees]     = useState([]);
   const [empLoading, setEmpLoading]   = useState(true);
-  const [todayAtt, setTodayAtt]       = useState([]);
 
   const [calData, setCalData]         = useState(null);
   const [calLoading, setCalLoading]   = useState(false);
 
-  // Calendar mark modal state
-  const [markModal, setMarkModal]       = useState(null);
-  const [confirmDel, setConfirmDel]     = useState(null);
-  const [delLoading, setDelLoading]     = useState(false);
-  const [markingAll, setMarkingAll]     = useState(false);
-  const [markAllModal, setMarkAllModal] = useState(null); // { onTime: bool, lateTime: 'HH:MM' }
+  const [markModal, setMarkModal]     = useState(null);
+  const [confirmDel, setConfirmDel]   = useState(null);
+  const [delLoading, setDelLoading]   = useState(false);
 
-  // Date-view state (for "By Date" mode within the employee list panel)
-  const [listMode, setListMode]             = useState('staff'); // 'staff' | 'date'
-  const [dateViewDate, setDateViewDate]     = useState(todayStr());
-  const [dateViewAtt, setDateViewAtt]       = useState([]);
+  const [dateViewDate, setDateViewDate]       = useState(todayStr());
+  const [dateViewAtt, setDateViewAtt]         = useState([]);
   const [dateViewLoading, setDateViewLoading] = useState(false);
-  const [dvMarkModal, setDvMarkModal]       = useState(null);
-  const [dvMarkEmpId, setDvMarkEmpId]       = useState(null);
+  const [dvMarkModal, setDvMarkModal]         = useState(null);
+  const [dvMarkEmpId, setDvMarkEmpId]         = useState(null);
 
   const today          = todayStr();
   const isCurrentMonth = month === now.getMonth() + 1 && year === now.getFullYear();
-
-  const handledState = useRef(false);
-
-  const refreshTodayAtt = async () => {
-    const att = await listAttendance({ date: today });
-    setTodayAtt(Array.isArray(att) ? att : (att.results || []));
-  };
+  const handledState   = useRef(false);
 
   useEffect(() => {
     setEmpLoading(true);
-    Promise.all([listEmployees(), listAttendance({ date: today })])
-      .then(([emps, att]) => {
-        setEmployees(Array.isArray(emps) ? emps : (emps.results || []));
-        setTodayAtt(Array.isArray(att) ? att : (att.results || []));
-      })
+    listEmployees()
+      .then((emps) => setEmployees(Array.isArray(emps) ? emps : (emps.results || [])))
       .catch(() => {})
       .finally(() => setEmpLoading(false));
   }, []); // eslint-disable-line
 
-  // Auto-open calendar if navigated from EmployeesTab with state
   useEffect(() => {
     if (!handledState.current && location.state?.openEmployee) {
       handledState.current = true;
@@ -219,9 +194,7 @@ export default function AttendanceTab() {
     }
   }, [dateViewDate]);
 
-  useEffect(() => {
-    if (listMode === 'date') loadDateView();
-  }, [listMode, dateViewDate]); // eslint-disable-line
+  useEffect(() => { loadDateView(); }, [dateViewDate]); // eslint-disable-line
 
   const openCalendar = (emp) => {
     setSelectedEmp(emp);
@@ -231,60 +204,11 @@ export default function AttendanceTab() {
     setView('calendar');
   };
 
-  const backToList = () => {
-    setView('employees');
-    setSelectedEmp(null);
-    setCalData(null);
-  };
+  const backToList = () => { setView('employees'); setSelectedEmp(null); setCalData(null); };
 
-  const prevMonth = () => {
-    if (month === 1) { setMonth(12); setYear((y) => y - 1); } else setMonth((m) => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 12) { setMonth(1); setYear((y) => y + 1); } else setMonth((m) => m + 1);
-  };
+  const prevMonth     = () => { if (month === 1) { setMonth(12); setYear((y) => y - 1); } else setMonth((m) => m - 1); };
+  const nextMonth     = () => { if (month === 12) { setMonth(1); setYear((y) => y + 1); } else setMonth((m) => m + 1); };
   const goToThisMonth = () => { setMonth(now.getMonth() + 1); setYear(now.getFullYear()); };
-
-  const todayAttMap   = {};
-  todayAtt.forEach((r) => { todayAttMap[String(r.employee)] = r; });
-  const unmarkedToday = employees.filter((e) => e.status === 'active' && !todayAttMap[String(e.id)]);
-
-  const markAllPresent = async ({ onTime, empTimes }) => {
-    setMarkAllModal(null);
-    setMarkingAll(true);
-    try {
-      const results = await Promise.allSettled(
-        unmarkedToday.map((emp) => {
-          let checkIn = null;
-          if (onTime) {
-            checkIn = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : null;
-          } else {
-            checkIn = empTimes?.[emp.id] || null;
-          }
-          return createAttendance({
-            employee:  emp.id,
-            date:      today,
-            status:    'present',
-            notes:     null,
-            check_in:  checkIn,
-            check_out: null,
-          });
-        })
-      );
-      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
-      const failed    = results.filter((r) => r.status === 'rejected').length;
-      if (succeeded > 0) {
-        toast.success(`Marked ${succeeded} employee${succeeded !== 1 ? 's' : ''} as present${failed > 0 ? ` (${failed} failed)` : ''}`);
-      } else {
-        toast.error('Failed to mark attendance — please try again');
-      }
-      await refreshTodayAtt();
-    } catch (err) {
-      toast.error(extractError(err));
-    } finally {
-      setMarkingAll(false);
-    }
-  };
 
   const handleDelete = async () => {
     setDelLoading(true);
@@ -293,7 +217,6 @@ export default function AttendanceTab() {
       toast.success('Record deleted');
       setConfirmDel(null);
       await loadCalendar();
-      if (confirmDel.date === today) await refreshTodayAtt();
     } catch (err) {
       toast.error(extractError(err));
     } finally {
@@ -305,250 +228,75 @@ export default function AttendanceTab() {
     setDvMarkEmpId(emp.id);
     setDvMarkModal({
       dayInfo: {
-        date:          dateViewDate,
-        day:           new Date(dateViewDate + 'T00:00:00').getDate(),
+        date:           dateViewDate,
+        day:            new Date(dateViewDate + 'T00:00:00').getDate(),
         is_working_day: true,
-        is_today:      dateViewDate === today,
-        is_future:     false,
-        record:        rec || null,
+        is_today:       dateViewDate === today,
+        is_future:      false,
+        record:         rec || null,
       },
     });
   };
 
-  // ── Calendar view (full-screen take-over) ────────────────────────────────────
+  // ── Calendar view ────────────────────────────────────────────────────────────
 
   if (view === 'calendar' && selectedEmp) {
     return (
       <>
         <EmployeeCalendar
-          calData={calData}
-          loading={calLoading}
-          month={month}
-          year={year}
-          isCurrentMonth={isCurrentMonth}
-          today={today}
-          onPrevMonth={prevMonth}
-          onNextMonth={nextMonth}
-          onGoToThisMonth={goToThisMonth}
+          calData={calData} loading={calLoading}
+          month={month} year={year} isCurrentMonth={isCurrentMonth} today={today}
+          onPrevMonth={prevMonth} onNextMonth={nextMonth} onGoToThisMonth={goToThisMonth}
           onBack={backToList}
           onDayClick={(dayInfo) => setMarkModal({ dayInfo })}
           onDeleteRecord={(rec) => setConfirmDel(rec)}
         />
         <MarkDayModal
-          modal={markModal}
-          empId={selectedEmp.id}
+          modal={markModal} empId={selectedEmp.id}
           onClose={() => setMarkModal(null)}
-          onSaved={async () => { setMarkModal(null); await loadCalendar(); await refreshTodayAtt(); }}
+          onSaved={async () => { setMarkModal(null); await loadCalendar(); }}
         />
         <ConfirmDialog
-          open={!!confirmDel}
-          onClose={() => setConfirmDel(null)}
-          onConfirm={handleDelete}
-          loading={delLoading}
-          title="Delete attendance record?"
-          message="This action cannot be undone."
+          open={!!confirmDel} onClose={() => setConfirmDel(null)}
+          onConfirm={handleDelete} loading={delLoading}
+          title="Delete attendance record?" message="This action cannot be undone."
         />
       </>
     );
   }
 
-  // ── Employee list / date view ────────────────────────────────────────────────
+  // ── Date view ────────────────────────────────────────────────────────────────
 
   return (
     <>
       <div className="space-y-5">
-
-        {/* Header + mode toggle */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-100">Attendance</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              {listMode === 'staff'
-                ? 'Select an employee to view or edit their monthly attendance calendar'
-                : 'View and mark all staff attendance for a specific date'}
-            </p>
-          </div>
-          <div className="flex gap-1 shrink-0">
-            <button
-              onClick={() => setListMode('staff')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                listMode === 'staff'
-                  ? 'bg-accent/20 text-accent border-accent/40'
-                  : 'border-border text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <Users size={12} /> By Staff
-            </button>
-            <button
-              onClick={() => setListMode('date')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                listMode === 'date'
-                  ? 'bg-accent/20 text-accent border-accent/40'
-                  : 'border-border text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              <CalendarDays size={12} /> By Date
-            </button>
-          </div>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-100">Attendance</h2>
+          <p className="text-xs text-gray-500 mt-0.5">View and mark all staff attendance for a specific date</p>
         </div>
-
-        {listMode === 'staff' ? (
-          <EmployeeListPanel
-            employees={employees}
-            loading={empLoading}
-            todayAttMap={todayAttMap}
-            unmarkedToday={unmarkedToday}
-            markingAll={markingAll}
-            onViewCalendar={openCalendar}
-            onRequestMarkAll={() => setMarkAllModal({ onTime: true, lateTime: nowTimeStr() })}
-          />
-        ) : (
-          <DateViewPanel
-            employees={employees}
-            loading={dateViewLoading}
-            date={dateViewDate}
-            onSetDate={setDateViewDate}
-            attendance={dateViewAtt}
-            today={today}
-            onOpenMark={openDateViewMark}
-          />
-        )}
-
+        <DateViewPanel
+          employees={employees}
+          loading={dateViewLoading || empLoading}
+          date={dateViewDate}
+          onSetDate={setDateViewDate}
+          attendance={dateViewAtt}
+          today={today}
+          onOpenMark={openDateViewMark}
+          onViewCalendar={openCalendar}
+        />
       </div>
-
-      {/* Date-view mark modal */}
       <MarkDayModal
-        modal={dvMarkModal}
-        empId={dvMarkEmpId}
+        modal={dvMarkModal} empId={dvMarkEmpId}
         onClose={() => { setDvMarkModal(null); setDvMarkEmpId(null); }}
-        onSaved={async () => {
-          setDvMarkModal(null);
-          setDvMarkEmpId(null);
-          await loadDateView();
-          if (dateViewDate === today) await refreshTodayAtt();
-        }}
-      />
-
-      <MarkAllPresentModal
-        open={!!markAllModal}
-        modal={markAllModal}
-        employees={unmarkedToday}
-        loading={markingAll}
-        onClose={() => setMarkAllModal(null)}
-        onChange={setMarkAllModal}
-        onConfirm={markAllPresent}
+        onSaved={async () => { setDvMarkModal(null); setDvMarkEmpId(null); await loadDateView(); }}
       />
     </>
   );
 }
 
-// ── Employee List Panel ────────────────────────────────────────────────────────
-
-function EmployeeListPanel({ employees, loading, todayAttMap, unmarkedToday, markingAll, onViewCalendar, onRequestMarkAll }) {
-  return (
-    <div className="space-y-4">
-
-      {/* Unmarked today banner */}
-      {!loading && unmarkedToday.length > 0 && (
-        <div className="bg-yellow-900/15 border border-yellow-700/30 rounded-xl px-4 py-3 flex items-start gap-2.5">
-          <AlertCircle size={15} className="text-yellow-400 shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-yellow-300 mb-1.5">
-              {unmarkedToday.length} employee{unmarkedToday.length !== 1 ? 's' : ''} not marked for today
-            </p>
-            <div className="flex flex-wrap gap-1.5 mb-2.5">
-              {unmarkedToday.map((emp) => (
-                <span key={emp.id} className="px-2 py-0.5 rounded-full bg-yellow-900/30 text-yellow-300 text-xs border border-yellow-700/30">
-                  {emp.employee_name}
-                </span>
-              ))}
-            </div>
-            <button
-              onClick={onRequestMarkAll}
-              disabled={markingAll}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-900/30 text-emerald-400 border border-emerald-700/40 hover:bg-emerald-900/50 transition-colors disabled:opacity-50"
-            >
-              {markingAll ? 'Marking…' : `Mark All Present (${unmarkedToday.length})`}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {loading ? (
-        <Loading />
-      ) : employees.length === 0 ? (
-        <EmptyState icon={Users} title="No employees" message="Add employees first to track attendance." />
-      ) : (
-        <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-          <div className="divide-y divide-border/50">
-            {employees.map((emp) => {
-              const todayRec = todayAttMap[String(emp.id)];
-              return (
-                <div key={emp.id} className="flex items-center gap-4 px-5 py-3.5 hover:bg-bg-elev/40 transition-colors">
-                  {/* Avatar */}
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${avatarColor(emp.employee_name)}`}>
-                    {getInitials(emp.employee_name)}
-                  </div>
-
-                  {/* Name + details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-100 text-sm">{emp.employee_name}</span>
-                      <span className="text-[10px] font-mono text-accent bg-accent/10 border border-accent/30 px-1.5 py-0.5 rounded">
-                        {emp.employee_code}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-xs text-gray-500">{EMP_TYPE_LABEL[emp.employee_type] || emp.employee_type}</span>
-                      {emp.shift_name && (
-                        <>
-                          <span className="text-gray-600">·</span>
-                          <span className="text-xs text-gray-500 flex items-center gap-0.5">
-                            <Clock size={9} /> {emp.shift_name}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Today status */}
-                  <div className="flex-shrink-0 text-right hidden sm:block">
-                    {todayRec ? (
-                      <span className={`text-xs font-semibold ${STATUS_TEXT[todayRec.status] || 'text-gray-400'}`}>
-                        {STATUS_LABEL[todayRec.status] || todayRec.status}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-600">Not marked</span>
-                    )}
-                    <div className="text-[10px] text-gray-600 mt-0.5">Today</div>
-                  </div>
-
-                  {/* Emp status badge */}
-                  <span className={`hidden md:inline-flex px-2 py-0.5 rounded-full text-[10px] font-medium border ${EMP_STATUS_STYLE[emp.status] || 'bg-bg-elev text-gray-400 border-border'}`}>
-                    {emp.status === 'on_leave' ? 'On Leave' : emp.status === 'inactive' ? 'Inactive' : 'Active'}
-                  </span>
-
-                  {/* View Calendar button */}
-                  <button
-                    onClick={() => onViewCalendar(emp)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 transition-colors flex-shrink-0"
-                  >
-                    <CalendarDays size={12} />
-                    Calendar
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Date View Panel ────────────────────────────────────────────────────────────
 
-function DateViewPanel({ employees, loading, date, onSetDate, attendance, today, onOpenMark }) {
+function DateViewPanel({ employees, loading, date, onSetDate, attendance, today, onOpenMark, onViewCalendar }) {
   const attMap = {};
   attendance.forEach((r) => { attMap[String(r.employee)] = r; });
 
@@ -606,9 +354,9 @@ function DateViewPanel({ employees, loading, date, onSetDate, attendance, today,
                     <span className="text-xs text-gray-500">{EMP_TYPE_LABEL[emp.employee_type] || emp.employee_type}</span>
                   </div>
 
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0">
                     {rec ? (
-                      <div className="text-right">
+                      <div className="text-right mr-1">
                         <span className={`text-xs font-semibold ${STATUS_TEXT[rec.status] || 'text-gray-400'}`}>
                           {STATUS_LABEL[rec.status] || rec.status}
                         </span>
@@ -617,7 +365,7 @@ function DateViewPanel({ employees, loading, date, onSetDate, attendance, today,
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-600">Not marked</span>
+                      <span className="text-xs text-gray-600 mr-1">Not marked</span>
                     )}
                     <button
                       onClick={() => onOpenMark(emp, rec || null)}
@@ -628,6 +376,12 @@ function DateViewPanel({ employees, loading, date, onSetDate, attendance, today,
                       }`}
                     >
                       {rec ? 'Edit' : 'Mark'}
+                    </button>
+                    <button
+                      onClick={() => onViewCalendar(emp)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-bg-elev border border-border text-gray-400 hover:text-accent hover:border-accent/40 transition-colors flex-shrink-0"
+                    >
+                      <CalendarDays size={11} /> Calendar
                     </button>
                   </div>
                 </div>
@@ -878,123 +632,6 @@ function DayCell({ dayInfo, today, onDayClick, onDeleteRecord }) {
         </>
       )}
     </div>
-  );
-}
-
-// ── Mark All Present Modal ─────────────────────────────────────────────────────
-
-function MarkAllPresentModal({ open, modal, employees, loading, onClose, onChange, onConfirm }) {
-  const [empTimes, setEmpTimes] = useState({});
-
-  useEffect(() => {
-    if (!open || !employees?.length) return;
-    const init = {};
-    employees.forEach((emp) => {
-      init[emp.id] = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : nowTimeStr();
-    });
-    setEmpTimes(init);
-  }, [open, employees]); // eslint-disable-line
-
-  if (!open || !modal) return null;
-
-  const { onTime } = modal;
-  const count = employees?.length || 0;
-
-  const setEmpTime = (empId, time) =>
-    setEmpTimes((prev) => ({ ...prev, [empId]: time }));
-
-  const lateCount = (employees || []).filter((emp) => {
-    const shiftStart = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : null;
-    return shiftStart && empTimes[emp.id] && empTimes[emp.id] > shiftStart;
-  }).length;
-
-  return (
-    <Modal
-      open={open}
-      onClose={onClose}
-      size="sm"
-      title={`Mark ${count} employee${count !== 1 ? 's' : ''} as Present`}
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={loading}>Cancel</Button>
-          <Button onClick={() => onConfirm({ onTime, empTimes })} loading={loading}>
-            Mark All Present
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-4">
-        <p className="text-sm text-gray-400">Did everyone arrive on time today?</p>
-
-        {/* On Time */}
-        <button
-          type="button"
-          onClick={() => onChange((m) => ({ ...m, onTime: true }))}
-          className={`w-full flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors text-left ${
-            onTime ? 'border-emerald-600/60 bg-emerald-900/20' : 'border-border bg-bg-elev/40 hover:bg-bg-elev/70'
-          }`}
-        >
-          <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${onTime ? 'border-emerald-500' : 'border-gray-500'}`}>
-            {onTime && <span className="w-2 h-2 rounded-full bg-emerald-500 block" />}
-          </span>
-          <div>
-            <p className={`text-sm font-semibold ${onTime ? 'text-emerald-400' : 'text-gray-300'}`}>Everyone came on time</p>
-            <p className="text-xs text-gray-500 mt-0.5">Check-in will be set to each employee's shift start time</p>
-          </div>
-        </button>
-
-        {/* Late — expands to per-employee list */}
-        <div className={`rounded-xl border transition-colors ${!onTime ? 'border-yellow-600/60 bg-yellow-900/15' : 'border-border bg-bg-elev/40'}`}>
-          <button
-            type="button"
-            onClick={() => onChange((m) => ({ ...m, onTime: false }))}
-            className="w-full flex items-start gap-3 px-4 py-3 text-left"
-          >
-            <span className={`mt-0.5 w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${!onTime ? 'border-yellow-500' : 'border-gray-500'}`}>
-              {!onTime && <span className="w-2 h-2 rounded-full bg-yellow-500 block" />}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-semibold ${!onTime ? 'text-yellow-400' : 'text-gray-300'}`}>Someone came late</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Set each employee's actual check-in time below
-                {!onTime && lateCount > 0 && <span className="ml-1.5 text-yellow-500 font-medium">· {lateCount} late</span>}
-              </p>
-            </div>
-          </button>
-
-          {!onTime && (
-            <div
-              className="border-t border-yellow-700/30 divide-y divide-border/40 max-h-64 overflow-y-auto"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {(employees || []).map((emp) => {
-                const shiftStart  = emp.shift_start_time ? emp.shift_start_time.slice(0, 5) : null;
-                const currentTime = empTimes[emp.id] || '';
-                const isActuallyLate = shiftStart && currentTime && currentTime > shiftStart;
-                return (
-                  <div key={emp.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${avatarColor(emp.employee_name)}`}>
-                      {getInitials(emp.employee_name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-200 truncate">{emp.employee_name}</p>
-                      {shiftStart && <p className="text-[10px] text-gray-500">Shift starts {fmtTime(shiftStart + ':00')}</p>}
-                    </div>
-                    {isActuallyLate && <span className="text-[10px] font-semibold text-yellow-500 shrink-0">Late</span>}
-                    <input
-                      type="time"
-                      value={currentTime}
-                      onChange={(e) => setEmpTime(emp.id, e.target.value)}
-                      className="w-28 bg-bg-elev border border-border rounded-lg px-2 py-1.5 text-sm text-gray-100 focus:outline-none focus:ring-1 focus:ring-accent/50 focus:border-accent/60 shrink-0"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    </Modal>
   );
 }
 

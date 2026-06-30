@@ -5,19 +5,49 @@ import {
 } from 'lucide-react';
 import { tokens, logout } from '../api/auth';
 
-const ALL_LINKS = [
-  { to: '/',          icon: LayoutDashboard, label: 'Dashboard',          end: true,  staffAllowed: true  },
-  { to: '/jobcards',  icon: ClipboardList,   label: 'Job Cards',          end: false, staffAllowed: true  },
-  { to: '/customers', icon: Users,           label: 'Customers / Vehicles', end: false, staffAllowed: true },
-  { to: '/services',  icon: Wrench,          label: 'Services',           end: false, staffAllowed: false },
-  { to: '/sales',     icon: ShoppingCart,    label: 'Sales',              end: false, staffAllowed: true  },
-  { to: '/employees', icon: UserCog,         label: 'Employees',          end: false, staffAllowed: false },
-  { to: '/vendors',   icon: Truck,           label: 'Vendors',            end: false, staffAllowed: false },
-  { to: '/finance',   icon: TrendingUp,      label: 'Finance',            end: false, staffAllowed: false },
-  { to: '/kiosk',     icon: ScanLine,        label: 'Kiosk',              end: false, staffAllowed: true  },
-  { to: '/notifications', icon: Bell, label: 'Notifications' },
-  { to: '/guide', icon: BookOpen, label: 'User Guide' },
-  { to: '/settings',  icon: Settings2,       label: 'Settings',           end: false, staffAllowed: false },
+const NAV_GROUPS = [
+  {
+    label: null,
+    items: [
+      { to: '/',         icon: LayoutDashboard, label: 'Dashboard',            end: true,  staffAllowed: true },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { to: '/jobcards',  icon: ClipboardList, label: 'Job Cards',             end: false, staffAllowed: true  },
+      { to: '/customers', icon: Users,         label: 'Customers / Vehicles',  end: false, staffAllowed: true  },
+      { to: '/sales',     icon: ShoppingCart,  label: 'Sales',                 end: false, staffAllowed: true  },
+    ],
+  },
+  {
+    label: 'Catalogue',
+    items: [
+      { to: '/services', icon: Wrench, label: 'Services', end: false, staffAllowed: false },
+      { to: '/vendors',  icon: Truck,  label: 'Vendors',  end: false, staffAllowed: false },
+    ],
+  },
+  {
+    label: 'Back Office',
+    items: [
+      { to: '/employees', icon: UserCog,    label: 'Employees', end: false, staffAllowed: false },
+      { to: '/finance',   icon: TrendingUp, label: 'Finance',   end: false, staffAllowed: false },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { to: '/kiosk', icon: ScanLine, label: 'Kiosk', end: false, staffAllowed: true },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { to: '/notifications', icon: Bell,     label: 'Notifications', end: false, staffAllowed: true  },
+      { to: '/guide',         icon: BookOpen, label: 'User Guide',    end: false, staffAllowed: true  },
+      { to: '/settings',      icon: Settings2, label: 'Settings',     end: false, staffAllowed: false },
+    ],
+  },
 ];
 
 export default function Sidebar({ onClose }) {
@@ -26,8 +56,6 @@ export default function Sidebar({ onClose }) {
   const role         = tokens.getRole();
   const isStaff      = role === 'staff';
   const employeeName = tokens.getEmployeeName();
-
-  const links = isStaff ? ALL_LINKS.filter(l => l.staffAllowed) : ALL_LINKS;
 
   const onLogout = () => {
     logout();
@@ -59,25 +87,43 @@ export default function Sidebar({ onClose }) {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            end={link.end}
-            onClick={onClose}
-            className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
-                isActive
-                  ? 'bg-accent-soft text-accent border border-accent/30'
-                  : 'text-gray-400 hover:text-gray-100 hover:bg-bg-hover border border-transparent'
-              }`
-            }
-          >
-            <link.icon size={16} className="shrink-0" />
-            <span className="truncate">{link.label}</span>
-          </NavLink>
-        ))}
+      <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-4">
+        {NAV_GROUPS.map((group, gi) => {
+          const items = isStaff ? group.items.filter((l) => l.staffAllowed) : group.items;
+          if (items.length === 0) return null;
+          return (
+            <div key={gi}>
+              {group.label && (
+                <div className="px-3 mb-1 flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-gray-600 uppercase tracking-widest">
+                    {group.label}
+                  </span>
+                  <div className="flex-1 h-px bg-border/60" />
+                </div>
+              )}
+              <div className="space-y-0.5">
+                {items.map((link) => (
+                  <NavLink
+                    key={link.to}
+                    to={link.to}
+                    end={link.end}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${
+                        isActive
+                          ? 'bg-accent-soft text-accent border border-accent/30'
+                          : 'text-gray-400 hover:text-gray-100 hover:bg-bg-hover border border-transparent'
+                      }`
+                    }
+                  >
+                    <link.icon size={16} className="shrink-0" />
+                    <span className="truncate">{link.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
       {/* User + role badge + logout */}
@@ -88,7 +134,6 @@ export default function Sidebar({ onClose }) {
               <User size={13} />
             </div>
             <div className="min-w-0">
-              {/* Show employee name as primary if mapped, otherwise show username */}
               <div className="truncate font-medium text-gray-200">
                 {employeeName || username}
               </div>
