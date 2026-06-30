@@ -92,29 +92,10 @@ def _outstanding_thru(end_date):
 
 
 def _expense_for_period(year, month):
-    salary = SalaryTransaction.objects.filter(
-        status='paid',
-        payment_date__year=year,
-        payment_date__month=month,
-    ).aggregate(t=Sum('net_paid'))['t'] or Decimal('0')
-
-    advance = SalaryAdvance.objects.filter(
-        status__in=['approved', 'deducted'],
+    return Expense.objects.filter(
         date__year=year,
         date__month=month,
     ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-
-    invoice = InvoicePayment.objects.filter(
-        payment_date__year=year,
-        payment_date__month=month,
-    ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-
-    others = Expense.objects.filter(
-        date__year = year,
-        date__month = month,
-    ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-
-    return salary + advance + invoice + others
 
 
 class FinanceDashboardView(APIView):
@@ -486,16 +467,9 @@ class FinanceExpenseView(APIView):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _expense_total_before_date(before_date):
-    salary = SalaryTransaction.objects.filter(
-        status='paid', payment_date__lt=before_date
-    ).aggregate(t=Sum('net_paid'))['t'] or Decimal('0')
-    advance = SalaryAdvance.objects.filter(
-        status__in=['approved', 'deducted'], date__lt=before_date
+    return Expense.objects.filter(
+        date__lt=before_date,
     ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-    invoice = InvoicePayment.objects.filter(
-        payment_date__lt=before_date
-    ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-    return salary + advance + invoice
 
 
 # ─────────────────────────────────────────────────────────────────────────────
