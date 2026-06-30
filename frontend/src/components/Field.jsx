@@ -16,7 +16,8 @@ export function Field({ label, required, error, children, hint }) {
 const baseInput = 'w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-gray-100 placeholder-gray-500 focus:border-accent focus:ring-1 focus:ring-accent transition-colors disabled:opacity-50';
 
 export function Input({ className = '', ...rest }) {
-  return <input className={`${baseInput} ${className}`} {...rest} />;
+  const handleWheel = rest.type === 'number' ? (e) => e.target.blur() : undefined;
+  return <input className={`${baseInput} ${className}`} onWheel={handleWheel} {...rest} />;
 }
 
 export function Textarea({ className = '', rows = 3, ...rest }) {
