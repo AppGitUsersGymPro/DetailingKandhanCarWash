@@ -591,7 +591,7 @@ export default function JobCardCreate() {
           {step === 4 && (
             <Step4
               showPaymentPage={showPaymentPage}
-              onYes={() => setShowPaymentPage(true)}
+              onYes={() => { setShowPaymentPage(true); setAmountGiven(totalPrice); }}
               onNo={() => submit()}
               paymentType={paymentType}
               setPaymentType={setPaymentType}

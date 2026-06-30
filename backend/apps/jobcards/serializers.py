@@ -364,11 +364,15 @@ class FullJobCardCreateSerializer(serializers.Serializer):
         payment_method = validated_data.get('payment_type', 'cash') or 'cash'
         if amount_given is not None and amount_given > 0:
             from django.utils import timezone
+            from .utils import compute_gst_split
+            gst_col, base_col = compute_gst_split(job_card, amount_given)
             JobCardPayment.objects.create(
                 job_card_id=jobcard_id,
                 amount=amount_given,
                 payment_date=timezone.now().date(),
                 payment_method=payment_method,
+                gst_collected=gst_col,
+                base_collected=base_col,
             )
 
         return job_card
