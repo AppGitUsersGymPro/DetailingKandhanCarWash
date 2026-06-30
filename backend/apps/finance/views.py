@@ -398,9 +398,11 @@ class FinanceExpenseView(APIView):
         search   = request.query_params.get('search', '').strip().lower()
 
         CAT_LABEL = {
-            'salary':         'Salary',
-            'advance':        'Advance',
-            'vendor_invoice': 'Vendor Invoice',
+            'salary':           'Salary',
+            'advance':          'Advance',
+            'vendor_invoice':   'Vendor Invoice',
+            'product_purchase': 'Product Purchase',
+            'others':           'Others',
         }
 
         qs = Expense.objects.filter(
@@ -550,7 +552,7 @@ class DailyReportView(APIView):
         total_collected = collected_today
 
         # ── Expenses paid out today (single Expense table — all types) ────
-        CAT_LABEL = {'salary': 'Salary', 'advance': 'Advance', 'vendor_invoice': 'Vendor Invoice'}
+        CAT_LABEL = {'salary': 'Salary', 'advance': 'Advance', 'vendor_invoice': 'Vendor Invoice', 'product_purchase': 'Product Purchase', 'others': 'Others'}
         expense_qs = Expense.objects.filter(date=report_date).order_by('category', '-id')
         expense_items = [
             {

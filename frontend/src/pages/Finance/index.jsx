@@ -33,6 +33,7 @@ const EXPENSE_CATS = [
   { value: 'salary', label: 'Salary' },
   { value: 'advance', label: 'Advance' },
   { value: 'vendor_invoice', label: 'Vendor Invoice' },
+  { value: 'product_purchase', label: 'Product Purchase' },
   { value: 'others', label: 'Others' },
 ];
 
@@ -172,8 +173,8 @@ export default function FinanceDashboard() {
   const [expCat, setExpCat] = useState('');
   const [amount, setAmount] = useState(0);
   const [customer, setCustomer] = useState('');
-  const [date, setDate] = useState('');
-  const [category, setCategory] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [category, setCategory] = useState('others');
   const [reference, setReference] = useState('');
   useEffect(() => {
     let cancelled = false;
@@ -225,8 +226,8 @@ export default function FinanceDashboard() {
       // Reset fields
       setAmount(0);
       setCustomer('');
-      setDate('');
-      setCategory('');
+      setDate(new Date().toISOString().slice(0, 10));
+      setCategory('others');
       setReference('');
       // Refresh expense list
       setExpSearch('');
