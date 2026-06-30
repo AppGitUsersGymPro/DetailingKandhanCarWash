@@ -12,7 +12,8 @@ from rest_framework import status
 from apps.jobcards.models import JobCard, JobCardPayment, JobCardProductUsage, SalesOrder, SalesOrderItem
 from apps.employees.models import SalaryTransaction, SalaryAdvance
 from apps.vendors.models import InvoicePayment
-from apps.finance.models import Expense
+from apps.finance.models import Expense, DailyBalance
+from apps.finance.balance_utils import _get_prev_closing
 
 MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -423,11 +424,7 @@ class DailyReportView(APIView):
 
         total_billed = jc_billed + so_today_total
 
-        jc_collected_summary = JobCardPayment.objects.filter(
-            job_card__job_card_date=report_date,
-        ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-
-        total_collected = jc_collected_summary + so_today_total
+        # total_collected derived below from payment breakdown loop (no extra query)
 
         # ── Per-JC detail for service breakdown and pending list ─────────
         day_jcs = JobCard.objects.filter(
@@ -475,15 +472,16 @@ class DailyReportView(APIView):
                     'outstanding': str(outstanding),
                 })
 
-        # ── Payment mode breakdown (JC payments + SO sales on report_date) ──
+        # ── Payment breakdown + collected_today (all derived from 2 queries) ──
         payment_map = {}
+        jc_collected_today = Decimal('0')
         for pm in JobCardPayment.objects.filter(
             payment_date=report_date,
         ).values('payment_method').annotate(amount=Sum('amount'), count=Count('id')):
-            payment_map[pm['payment_method']] = {
-                'amount': pm['amount'] or Decimal('0'),
-                'count':  pm['count'],
-            }
+            amt = pm['amount'] or Decimal('0')
+            payment_map[pm['payment_method']] = {'amount': amt, 'count': pm['count']}
+            jc_collected_today += amt
+
         for pm in SalesOrder.objects.filter(
             sale_date=report_date,
         ).values('payment_method').annotate(amount=Sum('total_amount'), count=Count('id')):
@@ -500,55 +498,26 @@ class DailyReportView(APIView):
             for m, d in sorted(payment_map.items(), key=lambda x: -x[1]['amount'])
         ]
 
-        # ── Expenses paid out today ──────────────────────────────────────
-        expense_items = []
+        collected_today = jc_collected_today + so_today_total
+        total_collected = collected_today
 
-        for s in SalaryTransaction.objects.filter(
-            status='paid', payment_date=report_date
-        ).select_related('employee'):
-            expense_items.append({
-                'description': f'Salary – {s.employee.employee_name}',
-                'amount':      str(s.net_paid),
-                'category':    'Salary',
-            })
-
-        for a in SalaryAdvance.objects.filter(
-            status__in=['approved', 'deducted'], date=report_date
-        ).select_related('employee'):
-            expense_items.append({
-                'description': f'Advance – {a.employee.employee_name}',
-                'amount':      str(a.amount),
-                'category':    'Advance',
-            })
-
-        for ip in InvoicePayment.objects.filter(
-            payment_date=report_date
-        ).select_related('invoice__vendor'):
-            expense_items.append({
-                'description': f'{ip.invoice.vendor.vendor_name} · {ip.invoice.invoice_number}',
-                'amount':      str(ip.amount),
-                'category':    'Vendor',
-            })
-
+        # ── Expenses paid out today (single Expense table — all types) ────
+        CAT_LABEL = {'salary': 'Salary', 'advance': 'Advance', 'vendor_invoice': 'Vendor Invoice'}
+        expense_qs = Expense.objects.filter(date=report_date).order_by('category', '-id')
+        expense_items = [
+            {
+                'description': e.customer or e.description or '',
+                'amount':      str(e.amount),
+                'category':    CAT_LABEL.get(e.category, e.category or 'Other'),
+            }
+            for e in expense_qs
+        ]
         total_expenses = sum((Decimal(e['amount']) for e in expense_items), Decimal('0'))
 
-        # ── Flow statement: JC payments by payment_date + SO sales by sale_date ─
-        jc_collected_today = JobCardPayment.objects.filter(
-            payment_date=report_date,
-        ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        collected_today = jc_collected_today + so_today_total
-
-        jc_collected_before = JobCardPayment.objects.filter(
-            payment_date__lt=report_date,
-        ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
-        so_before_total = SalesOrder.objects.filter(
-            sale_date__lt=report_date,
-        ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
-        collected_before = jc_collected_before + so_before_total
-
-        exp_before  = _expense_total_before_date(report_date)
-        opening_bal = collected_before - exp_before
-        closing_bal = opening_bal + collected_today - total_expenses
+        # ── Opening / closing balance from DailyBalance ledger ──────────────
+        balance = DailyBalance.objects.filter(date=report_date).first()
+        opening_bal  = balance.opening_balance if balance else _get_prev_closing(report_date)
+        closing_bal  = opening_bal + collected_today - total_expenses
 
         # ── Inventory products consumed on this date (most used first) ─────
         usage_qs = (

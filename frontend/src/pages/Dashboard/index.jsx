@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardList, Users, IndianRupee, AlertTriangle, ArrowRight, Calendar } from 'lucide-react';
+import { ClipboardList, Users, IndianRupee, AlertTriangle, ArrowRight, Calendar, ChevronDown } from 'lucide-react';
+
+const DailyReport = lazy(() => import('./DailyReport'));
 import PageHeader from '../../components/PageHeader';
 import StatCard from '../../components/StatCard';
 import Loading from '../../components/Loading';
@@ -12,7 +14,6 @@ import { listCustomers } from '../../api/customers';
 import { listInventory } from '../../api/inventory';
 import { extractError } from '../../api/axios';
 import { jobCardTotal } from '../../utils/jobcard';
-import DailyReport from './DailyReport';
 
 const fmt = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -50,11 +51,12 @@ const FILTERS = [
 
 export default function Dashboard() {
   const toast = useToast();
-  const [dateFilter, setDateFilter] = useState('month');
-  const [loading, setLoading]       = useState(true);
-  const [stats, setStats]           = useState({ active: 0, customers: 0, revenue: 0 });
-  const [recentJobs, setRecentJobs] = useState([]);
-  const [lowStock, setLowStock]     = useState([]);
+  const [dateFilter, setDateFilter]   = useState('month');
+  const [loading, setLoading]         = useState(true);
+  const [stats, setStats]             = useState({ active: 0, customers: 0, revenue: 0 });
+  const [recentJobs, setRecentJobs]   = useState([]);
+  const [lowStock, setLowStock]       = useState([]);
+  const [showReport, setShowReport]   = useState(false);
 
   const load = useCallback(async (filter) => {
     setLoading(true);
@@ -133,9 +135,22 @@ export default function Dashboard() {
         <StatCard icon={AlertTriangle} label="Low Stock Alerts"   value={lowStock.length}             accent="red"    loading={loading} />
       </div>
 
-      {/* Daily Closing Report */}
+      {/* Daily Closing Report — lazy-mounted on demand */}
       <div className="mb-6">
-        <DailyReport />
+        <button
+          onClick={() => setShowReport(v => !v)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-bg-card border border-border rounded-xl text-sm font-medium text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
+        >
+          <span>Daily Closing Report</span>
+          <ChevronDown size={15} className={`transition-transform ${showReport ? 'rotate-180' : ''}`} />
+        </button>
+        {showReport && (
+          <div className="mt-3">
+            <Suspense fallback={<div className="py-10 text-center text-sm text-gray-500">Loading report…</div>}>
+              <DailyReport />
+            </Suspense>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">

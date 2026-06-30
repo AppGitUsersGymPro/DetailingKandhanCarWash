@@ -667,7 +667,7 @@ export default function DailyReport() {
                     </span>
                   </div>
                 ))}
-                {/* Closing */}
+                {/* Closing Balance */}
                 <div className="flex items-center justify-between gap-3 pt-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-100 shrink-0">
                     <CheckCircle2 size={15} className={Number(report.cash_flow.closing_balance) >= 0 ? 'text-emerald-400' : 'text-red-400'} />
