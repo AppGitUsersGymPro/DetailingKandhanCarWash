@@ -159,6 +159,10 @@ function ChartTip({ active, payload, label }) {
 export default function FinanceDashboard() {
   const toast = useToast();
   const [month, setMonth] = useState(todayMonth);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const rangeActive = !!(dateFrom && dateTo);
+  const periodLabel = rangeActive ? `${dateFrom} to ${dateTo}` : month;
 
   const [dash, setDash] = useState(null);
   const [dashLoading, setDashLoading] = useState(true);
@@ -181,10 +185,11 @@ export default function FinanceDashboard() {
     setDashLoading(true);
     setIncLoading(true);
     setExpLoading(true);
+    const rangeParams = rangeActive ? { date_from: dateFrom, date_to: dateTo } : {};
     Promise.all([
-      getFinanceDashboard(month),
-      getFinanceIncome({ month, search: incomeSearch }),
-      getFinanceExpense({ month, search: expSearch, category: expCat }),
+      getFinanceDashboard({ month, ...rangeParams }),
+      getFinanceIncome({ month, search: incomeSearch, ...rangeParams }),
+      getFinanceExpense({ month, search: expSearch, category: expCat, ...rangeParams }),
     ])
       .then(([d, inc, exp]) => {
         if (cancelled) return;
@@ -202,7 +207,7 @@ export default function FinanceDashboard() {
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [month, incomeSearch, expSearch, expCat]);
+  }, [month, incomeSearch, expSearch, expCat, dateFrom, dateTo]);
 
   const tbc = dash?.to_be_collected || {};
   const col = dash?.collected || {};
@@ -241,15 +246,40 @@ export default function FinanceDashboard() {
       <PageHeader
         title="Finance"
         subtitle="Income, expenses, and savings overview"
+        stackOnTablet
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-xs text-gray-400 shrink-0">Month</label>
             <input
               type="month"
               value={month}
               onChange={e => setMonth(e.target.value)}
+              disabled={rangeActive}
+              className="bg-bg-elev border border-border rounded-md px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-accent disabled:opacity-40"
+            />
+            <span className="text-xs text-gray-500">or range</span>
+            <label className="text-xs text-gray-400 shrink-0">From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
               className="bg-bg-elev border border-border rounded-md px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-accent"
             />
+            <label className="text-xs text-gray-400 shrink-0">To</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="bg-bg-elev border border-border rounded-md px-3 py-1.5 text-sm text-gray-100 focus:outline-none focus:border-accent"
+            />
+            {rangeActive && (
+              <button
+                onClick={() => { setDateFrom(''); setDateTo(''); }}
+                className="text-xs text-accent hover:underline"
+              >
+                Clear range
+              </button>
+            )}
           </div>
         }
       />
@@ -328,7 +358,7 @@ export default function FinanceDashboard() {
         {/* Income */}
         <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
           <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-200 shrink-0">Income — {month}</h2>
+            <h2 className="text-sm font-semibold text-gray-200 shrink-0">Income — {periodLabel}</h2>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -352,7 +382,7 @@ export default function FinanceDashboard() {
                   { key: 'paid_base',      label: 'Paid Base (₹)', sumable: true },
                   { key: 'paid_gst',       label: 'Paid GST (₹)',  sumable: true },
                   { key: 'payment_status', label: 'Status' },
-                ], `income-${month}`, `Income Report — ${month}`)}
+                ], `income-${rangeActive ? `${dateFrom}_to_${dateTo}` : month}`, `Income Report — ${periodLabel}`)}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
               >
                 <Download size={12} /> Excel
@@ -360,7 +390,7 @@ export default function FinanceDashboard() {
             </div>
           </div>
           {incomeLoading ? <Loading /> : income.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-8">No income records this month</p>
+            <p className="text-sm text-gray-500 text-center py-8">No income records for this period</p>
           ) : (
             <>
               {/* Desktop table */}
@@ -442,7 +472,7 @@ export default function FinanceDashboard() {
         {/* Expense */}
         <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
           <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <h2 className="text-sm font-semibold text-gray-200 shrink-0">Expenses — {month}</h2>
+            <h2 className="text-sm font-semibold text-gray-200 shrink-0">Expenses — {periodLabel}</h2>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
                 <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -470,7 +500,7 @@ export default function FinanceDashboard() {
                   { key: 'category', label: 'Category' },
                   { key: 'amount', label: 'Amount (₹)' },
                   { key: 'reference', label: 'Reference' },
-                ], `expense-${month}`, `Expense Report — ${month}`)}
+                ], `expense-${rangeActive ? `${dateFrom}_to_${dateTo}` : month}`, `Expense Report — ${periodLabel}`)}
                 className="flex items-center gap-1 px-2.5 py-1.5 bg-bg-elev border border-border rounded-md text-xs text-gray-300 hover:text-gray-100 hover:bg-bg-hover transition-colors"
               >
                 <Download size={12} /> Excel
@@ -497,7 +527,7 @@ export default function FinanceDashboard() {
             />
           )}
           {expLoading ? <Loading /> : expense.length === 0 ? (
-            <p className="text-sm text-gray-500 text-center py-8">No expense records this month</p>
+            <p className="text-sm text-gray-500 text-center py-8">No expense records for this period</p>
           ) : (
             <>
               {/* Desktop table */}

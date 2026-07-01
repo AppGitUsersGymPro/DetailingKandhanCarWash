@@ -3,8 +3,8 @@ import api from './axios';
 export const getDashboardStats = (params) =>
   api.get('finance/stats/', { params }).then(r => r.data);
 
-export const getFinanceDashboard = (month) =>
-  api.get('finance/dashboard/', { params: month ? { month } : {} }).then(r => r.data);
+export const getFinanceDashboard = (params) =>
+  api.get('finance/dashboard/', { params }).then(r => r.data);
 
 export const getFinanceIncome = (params) =>
   api.get('finance/income/', { params }).then(r => r.data);

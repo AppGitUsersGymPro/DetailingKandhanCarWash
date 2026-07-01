@@ -30,6 +30,21 @@ def _parse_month(param):
     return today.year, today.month
 
 
+def _parse_date_range(request):
+    """Optional date_from/date_to query params (YYYY-MM-DD). Returns (None, None)
+    unless both are present and valid, so callers can fall back to month filtering."""
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+    if not date_from or not date_to:
+        return None, None
+    try:
+        datetime.strptime(date_from, '%Y-%m-%d')
+        datetime.strptime(date_to, '%Y-%m-%d')
+    except ValueError:
+        return None, None
+    return date_from, date_to
+
+
 def _jc_base_gst_total(jc):
     # Service prices are GST-inclusive; back-calculate base and GST portion
     base = sum(s.price_at_time for s in jc.job_card_services.all())
@@ -141,6 +156,7 @@ class FinanceDashboardView(APIView):
         if year is None:
             return Response({'error': 'Invalid month format. Use YYYY-MM'}, status=status.HTTP_400_BAD_REQUEST)
 
+        date_from, date_to = _parse_date_range(request)
         current_year = date.today().year
 
         # ── Chart maps first (4 queries) ─────────────────────────────────
@@ -179,7 +195,14 @@ class FinanceDashboardView(APIView):
         }
 
         # ── Tile values: derive from maps when viewing current year ───────
-        if year == current_year:
+        if date_from and date_to:
+            so_month_total   = SalesOrder.objects.filter(
+                sale_date__gte=date_from, sale_date__lte=date_to,
+            ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+            expense_of_month = Expense.objects.filter(
+                date__gte=date_from, date__lte=date_to,
+            ).aggregate(t=Sum('amount'))['t'] or Decimal('0')
+        elif year == current_year:
             so_month_total   = so_map.get(month)      or Decimal('0')
             expense_of_month = expense_map.get(month) or Decimal('0')
         else:
@@ -188,11 +211,13 @@ class FinanceDashboardView(APIView):
             ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
             expense_of_month = _expense_for_period(year, month)
 
-        # ── To be collected: billed in this month ────────────────────────
+        # ── To be collected: billed in this month (or date range) ────────
+        if date_from and date_to:
+            jc_tbc_filter = {'job_card_date__gte': date_from, 'job_card_date__lte': date_to}
+        else:
+            jc_tbc_filter = {'job_card_date__year': year, 'job_card_date__month': month}
         jc_tbc = JobCard.objects.filter(
-            job_card_date__year=year,
-            job_card_date__month=month,
-            total_amount__isnull=False,
+            total_amount__isnull=False, **jc_tbc_filter,
         ).aggregate(
             total=Sum('total_amount'),
             base=Sum('base_amount'),
@@ -204,10 +229,11 @@ class FinanceDashboardView(APIView):
         tbc_gst   =  jc_tbc['gst']   or Decimal('0')
 
         # ── Collected: read stored gst_collected / base_collected ────────
-        payment_data = JobCardPayment.objects.filter(
-            payment_date__year=year,
-            payment_date__month=month,
-        ).aggregate(
+        if date_from and date_to:
+            payment_filter = {'payment_date__gte': date_from, 'payment_date__lte': date_to}
+        else:
+            payment_filter = {'payment_date__year': year, 'payment_date__month': month}
+        payment_data = JobCardPayment.objects.filter(**payment_filter).aggregate(
             total_collected=Sum('amount'),
             gst_collected=Sum('gst_collected'),
             base_collected=Sum('base_collected'),
@@ -264,13 +290,15 @@ class FinanceIncomeView(APIView):
         if year is None:
             return Response({'error': 'Invalid month format. Use YYYY-MM'}, status=status.HTTP_400_BAD_REQUEST)
 
+        date_from, date_to = _parse_date_range(request)
         search = request.query_params.get('search', '').strip()
 
         # One row per payment received in this month (not per job card).
-        pay_qs = JobCardPayment.objects.filter(
-            payment_date__year=year,
-            payment_date__month=month,
-        ).select_related(
+        if date_from and date_to:
+            pay_filter = {'payment_date__gte': date_from, 'payment_date__lte': date_to}
+        else:
+            pay_filter = {'payment_date__year': year, 'payment_date__month': month}
+        pay_qs = JobCardPayment.objects.filter(**pay_filter).select_related(
             'job_card__customer_asset__customer',
         ).prefetch_related(
             'job_card__job_card_services__service',
@@ -353,10 +381,11 @@ class FinanceIncomeView(APIView):
                 'payment_method':    p.payment_method,
                 'category':          'Job Card',
             })
-        sales_qs = SalesOrder.objects.filter(
-            sale_date__year=year,
-            sale_date__month=month,
-        ).prefetch_related(
+        if date_from and date_to:
+            sales_filter = {'sale_date__gte': date_from, 'sale_date__lte': date_to}
+        else:
+            sales_filter = {'sale_date__year': year, 'sale_date__month': month}
+        sales_qs = SalesOrder.objects.filter(**sales_filter).prefetch_related(
             Prefetch('items', queryset=SalesOrderItem.objects.select_related('inventory__product'))
         )
 
@@ -394,6 +423,7 @@ class FinanceExpenseView(APIView):
         if year is None:
             return Response({'error': 'Invalid month format. Use YYYY-MM'}, status=status.HTTP_400_BAD_REQUEST)
 
+        date_from, date_to = _parse_date_range(request)
         category = request.query_params.get('category', '').strip().lower()
         search   = request.query_params.get('search', '').strip().lower()
 
@@ -405,9 +435,11 @@ class FinanceExpenseView(APIView):
             'others':           'Others',
         }
 
-        qs = Expense.objects.filter(
-            date__year=year, date__month=month
-        ).order_by('-date')
+        if date_from and date_to:
+            expense_filter = {'date__gte': date_from, 'date__lte': date_to}
+        else:
+            expense_filter = {'date__year': year, 'date__month': month}
+        qs = Expense.objects.filter(**expense_filter).order_by('-date')
         if category:
             qs = qs.filter(category=category)
         if search:
