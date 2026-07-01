@@ -1,0 +1,1 @@
+2026-07-01 12:07:01,796 | INFO     | apps.notifications.scheduler | Notification scheduler started — service_reminder: daily 10:00 AM | auto_absent: every 1 hr

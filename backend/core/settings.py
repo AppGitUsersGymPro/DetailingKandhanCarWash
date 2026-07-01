@@ -176,3 +176,52 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # WhatsApp (Meta Cloud API)
 META_WHATSAPP_ACCESS_TOKEN    = config('META_WHATSAPP_ACCESS_TOKEN',    default='')
 META_WHATSAPP_PHONE_NUMBER_ID = config('META_WHATSAPP_PHONE_NUMBER_ID', default='')
+
+
+# ─── Logging ──────────────────────────────────────────────────────────────────
+# Without this block Python's root logger defaults to WARNING, so every
+# logger.info(...) in the app code is silently dropped. This routes app logs to
+# the console (visible under runserver / gunicorn) and to a rotating file.
+LOG_DIR = BASE_DIR / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
+
+LOG_LEVEL = config('LOG_LEVEL', default='INFO')
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime} | {levelname:<8} | {name} | {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'app.log',
+            'maxBytes': 5 * 1024 * 1024,   # 5 MB per file
+            'backupCount': 5,              # keep 5 old files
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+    },
+    'loggers': {
+        # Our application code (apps.jobcards, apps.employees, apps.vendors, ...)
+        'apps': {
+            'handlers': ['console', 'file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+        # Django's own logs (request errors, etc.)
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
