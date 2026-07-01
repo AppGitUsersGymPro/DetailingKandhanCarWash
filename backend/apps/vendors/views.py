@@ -1,3 +1,4 @@
+import logging
 from decimal import Decimal
 from rest_framework import status
 from rest_framework.views import APIView
@@ -5,6 +6,8 @@ from rest_framework.response import Response
 from django.db import transaction
 from django.db.models import Prefetch
 from .models import Vendor, ProductType, Product, Inventory, Invoice, InvoiceItem, InvoicePayment
+
+logger = logging.getLogger(__name__)
 from .serializers import (
     VendorSerializer, ProductTypeSerializer, ProductSerializer,
     InventorySerializer, InvoiceSerializer,
@@ -234,11 +237,16 @@ class InvoiceListCreateView(APIView):
         return Response(InvoiceSerializer(invoices, many=True).data)
 
     def post(self, request):
+        logger.info("Vendor invoice create requested | vendor=%s items=%s",
+                    request.data.get('vendor'), len(request.data.get('items') or []))
         serializer = InvoiceCreateSerializer(data=request.data)
         if serializer.is_valid():
             with transaction.atomic():
-                serializer.save()
+                invoice = serializer.save()
+            logger.info("Vendor invoice created | id=%s number=%s vendor_id=%s total=%s",
+                        invoice.id, invoice.invoice_number, invoice.vendor_id, invoice.total_amount)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Vendor invoice create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -312,24 +320,34 @@ class InvoicePaymentListCreateView(APIView):
     def post(self, request, invoice_pk):
         invoice = self._get_invoice(invoice_pk)
         if not invoice:
+            logger.warning("Invoice payment failed: invoice not found | invoice_id=%s", invoice_pk)
             return Response({'error': 'Invoice not found'}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = InvoicePaymentSerializer(data=request.data)
         if not serializer.is_valid():
+            logger.warning("Invoice payment validation failed | invoice=%s errors=%s",
+                           invoice.invoice_number, serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         amount = serializer.validated_data['amount']
         if amount <= Decimal('0'):
+            logger.warning("Invoice payment rejected: non-positive amount | invoice=%s amount=%s",
+                           invoice.invoice_number, amount)
             return Response({'amount': ['Amount must be greater than 0.']}, status=status.HTTP_400_BAD_REQUEST)
 
         outstanding = invoice.outstanding_amount
         if amount > outstanding:
+            logger.warning("Invoice payment rejected: exceeds outstanding | invoice=%s amount=%s outstanding=%s",
+                           invoice.invoice_number, amount, outstanding)
             return Response(
                 {'amount': [f'Amount exceeds outstanding balance of ₹{outstanding}.']},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         payment = serializer.save(invoice=invoice)
+        logger.info("Invoice payment recorded | invoice=%s amount=%s method=%s remaining=%s",
+                    invoice.invoice_number, amount,
+                    serializer.validated_data.get('payment_method'), outstanding - amount)
 
         # Return fresh invoice with all payments for receipt generation
         refreshed = (

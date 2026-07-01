@@ -39,10 +39,20 @@ import time
 
 class FullJobCardCreateView(APIView):
     def post(self, request):
+        owner_type = 'garage' if request.data.get('garage_owner') else 'customer'
+        logger.info("Job card create requested | owner_type=%s", owner_type)
+
         serializer = FullJobCardCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
+        if not serializer.is_valid():
+            logger.warning("Job card create validation failed | owner_type=%s errors=%s",
+                           owner_type, serializer.errors)
+            serializer.is_valid(raise_exception=True)
         job_card = serializer.save()
-        
+
+        logger.info(
+            "Job card created | id=%s number=%s owner_type=%s total=%s",
+            job_card.id, job_card.job_card_number, owner_type, job_card.total_amount,
+        )
 
         try:
             from apps.notifications.utils import queue_notification, _get_business_name
@@ -61,6 +71,8 @@ class FullJobCardCreateView(APIView):
                 business_name=_get_business_name(),
                 job_card_number=job_card.job_card_number,
             )
+            logger.info("Job card check-in notification queued | number=%s phone=%s",
+                        job_card.job_card_number, phone)
         except Exception:
             logger.exception("job_checkin notification failed for job card %s", job_card.job_card_number)
 
@@ -911,14 +923,23 @@ class SalesOrderListCreateView(APIView):
             if date:
                 qs = qs.filter(sale_date=date)
         else:
-            print("Execution Success")
             qs = qs.filter(sale_date__lte = _date.today(), sale_date__gte = _date.today()-timedelta(days=7))
         return Response(SalesOrderSerializer(qs, many=True).data)
 
     def post(self, request):
+        item_count = len(request.data.get('items') or [])
+        logger.info("Sales order create requested | customer=%s items=%s",
+                    request.data.get('customer_name'), item_count)
+
         ser = SalesOrderCreateSerializer(data=request.data)
-        ser.is_valid(raise_exception=True)
+        if not ser.is_valid():
+            logger.warning("Sales order create validation failed | errors=%s", ser.errors)
+            ser.is_valid(raise_exception=True)
         order = ser.save()
+
+        logger.info("Sales order created | id=%s number=%s customer=%s total=%s items=%s",
+                    order.id, order.order_number, order.customer_name,
+                    order.total_amount, item_count)
         return Response(SalesOrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
@@ -928,12 +949,18 @@ class SalesOrderDeleteView(APIView):
         try:
             order = SalesOrder.objects.prefetch_related('items__inventory').get(pk=pk)
         except SalesOrder.DoesNotExist:
+            logger.warning("Sales order delete failed: not found | id=%s", pk)
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        restocked = 0
         for item in order.items.all():
             inv = item.inventory
             inv.quantity_available += item.quantity
             inv.save(update_fields=['quantity_available'])
+            restocked += 1
+        order_number = order.order_number
         order.delete()
+        logger.info("Sales order deleted | id=%s number=%s items_restocked=%s",
+                    pk, order_number, restocked)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

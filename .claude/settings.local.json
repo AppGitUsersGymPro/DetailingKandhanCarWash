@@ -4,7 +4,8 @@
       "Bash(python manage.py migrate)",
       "Bash(grep -v \"^$\")",
       "Bash(Get-ChildItem -Path \"d:\\\\Projects\\\\Gymcrm\\\\GymDesk\" -Recurse -Include \"*.py\", \"*.js\", \"*.jsx\", \"*.ts\", \"*.tsx\")",
-      "Bash(Select-Object -First 20)"
+      "Bash(Select-Object -First 20)",
+      "Bash(python -m py_compile apps/jobcards/views.py apps/vendors/views.py apps/employees/views.py apps/notifications/signals.py)"
     ]
   }
 }

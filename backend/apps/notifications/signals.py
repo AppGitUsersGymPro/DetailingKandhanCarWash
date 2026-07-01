@@ -48,6 +48,9 @@ def dispatch_whatsapp_on_create(sender, instance, created, **kwargs):
     phone   = instance.recipient_phone
     message = instance.message
 
+    logger.info("Notification %s dispatching to %s | trigger=%s",
+                pk, phone, getattr(instance, 'trigger_type', None))
+
     def _send():
         from django.db import connection
         connection.close()

@@ -1,3 +1,4 @@
+import logging
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -7,6 +8,8 @@ import calendar
 from django.utils import timezone as tz
 
 from .models import Employee, Shift, Attendance, SalaryAdvance, SalaryTransaction, IncentiveSetting
+
+logger = logging.getLogger(__name__)
 from .serializers import (
     EmployeeSerializer, ShiftSerializer, AttendanceSerializer,
     SalaryAdvanceSerializer, SalaryTransactionSerializer, IncentiveSettingSerializer,
@@ -134,10 +137,16 @@ class AttendanceListView(APIView):
         return Response(AttendanceSerializer(qs, many=True).data)
 
     def post(self, request):
+        logger.info("Attendance create requested | employee=%s date=%s status=%s",
+                    request.data.get('employee'), request.data.get('date'),
+                    request.data.get('status'))
         serializer = AttendanceSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            record = serializer.save()
+            logger.info("Attendance recorded | id=%s employee_id=%s date=%s status=%s",
+                        record.id, record.employee_id, record.date, record.status)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Attendance validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -189,11 +198,16 @@ class SalaryAdvanceListView(APIView):
         return Response(SalaryAdvanceSerializer(qs, many=True).data)
 
     def post(self, request):
+        logger.info("Salary advance create requested | employee=%s amount=%s",
+                    request.data.get('employee'), request.data.get('amount'))
         serializer = SalaryAdvanceSerializer(data=request.data)
         if serializer.is_valid():
             with transaction.atomic():
-                serializer.save()
+                advance = serializer.save()
+                logger.info("Salary advance recorded | id=%s employee_id=%s amount=%s salary_month=%s",
+                            advance.id, advance.employee_id, advance.amount, advance.salary_month)
                 return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Salary advance validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -253,10 +267,15 @@ class SalaryTransactionListView(APIView):
         return Response(SalaryTransactionSerializer(qs, many=True).data)
 
     def post(self, request):
+        logger.info("Salary payment create requested | employee=%s month=%s",
+                    request.data.get('employee'), request.data.get('month'))
         serializer = SalaryTransactionSerializer(data=request.data)
         if serializer.is_valid():
             with transaction.atomic():
                 txn = serializer.save()
+
+            logger.info("Salary payment recorded | id=%s employee_id=%s month=%s net_paid=%s",
+                        txn.id, txn.employee_id, txn.month, txn.net_paid)
 
             try:
                 from apps.notifications.utils import queue_notification, _get_business_name
@@ -270,13 +289,15 @@ class SalaryTransactionListView(APIView):
                         month=txn.month.strftime('%B %Y'),
                         business_name=_get_business_name(),
                     )
+                    logger.info("Salary processed notification queued | transaction=%s employee=%s",
+                                txn.id, emp.employee_name)
             except Exception:
-                import logging
-                logging.getLogger(__name__).exception(
+                logger.exception(
                     "salary_processed notification failed for transaction %s", txn.id
                 )
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Salary payment validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -537,6 +558,7 @@ class AttendanceAutoCheckoutView(APIView):
                 'overtime_minutes': record.overtime_minutes,
             })
 
+        logger.info("Attendance auto-checkout run | date=%s records_closed=%s", today, len(updated))
         return Response({'updated': len(updated), 'records': updated})
 
 
@@ -585,11 +607,13 @@ class AttendanceKioskView(APIView):
     def post(self, request):
         emp_code = request.data.get('employee_code', '').strip().upper()
         if not emp_code:
+            logger.warning("Kiosk attendance rejected: missing employee code")
             return Response({'error': 'Employee code is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             emp = Employee.objects.select_related('shift').get(employee_code=emp_code)
         except Employee.DoesNotExist:
+            logger.warning("Kiosk attendance rejected: unknown employee code | code=%s", emp_code)
             return Response({'error': f'No employee found with code "{emp_code}"'}, status=status.HTTP_404_NOT_FOUND)
 
         today    = tz.localdate()
@@ -613,6 +637,8 @@ class AttendanceKioskView(APIView):
                 employee=emp, date=today, status=att_status,
                 check_in=now_time, check_out=None,
             )
+            logger.info("Kiosk check-in | employee=%s code=%s time=%s status=%s",
+                        emp.employee_name, emp.employee_code, now_time.strftime('%H:%M'), att_status)
             return Response({
                 'action': 'checked_in',
                 'employee_name': emp.employee_name,
@@ -625,6 +651,8 @@ class AttendanceKioskView(APIView):
         if record.check_out is None:
             record.check_out = now_time
             record.save()
+            logger.info("Kiosk check-out | employee=%s code=%s time=%s status=%s",
+                        emp.employee_name, emp.employee_code, now_time.strftime('%H:%M'), record.status)
             return Response({
                 'action': 'checked_out',
                 'employee_name': emp.employee_name,
@@ -637,6 +665,8 @@ class AttendanceKioskView(APIView):
         # Third+ scan: update check-out time
         record.check_out = now_time
         record.save()
+        logger.info("Kiosk check-out updated | employee=%s code=%s time=%s status=%s",
+                    emp.employee_name, emp.employee_code, now_time.strftime('%H:%M'), record.status)
         return Response({
             'action': 'checkout_updated',
             'employee_name': emp.employee_name,
