@@ -36,9 +36,11 @@ class JobCardServiceSerializer(serializers.ModelSerializer):
 
     def get_has_usages(self, obj):
         """True if at least one product usage has been recorded for this service."""
-        return JobCardProductUsage.objects.filter(
-            job_card_product__job_card_service=obj
-        ).exists()
+        return any(
+        usage
+        for jcp in obj.products.all()
+        for usage in jcp.usages.all()
+    )
 
 
 class JobCardPaymentSerializer(serializers.ModelSerializer):

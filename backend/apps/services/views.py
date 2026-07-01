@@ -1,3 +1,4 @@
+import logging
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,6 +9,8 @@ from .serializers import (
     ServiceEmployeeSerializer,
     ServiceVehiclePriceSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ─── Service ──────────────────────────────────────────
@@ -23,10 +26,14 @@ class ServiceListCreateView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
+        logger.info("Service create requested | name=%s", request.data.get('service_name'))
         serializer = ServiceSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            service = serializer.save()
+            logger.info("Service created | id=%s name=%s price=%s",
+                        service.id, service.service_name, service.service_price)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Service create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ServiceListByVehicleTypeCreateView(APIView):

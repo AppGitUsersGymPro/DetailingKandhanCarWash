@@ -1,6 +1,8 @@
 import logging
 from datetime import timedelta, date as _date
 from decimal import Decimal
+from urllib import request
+from xml.parsers.expat import model
 from django.db import transaction
 from django.db.models import Count, Sum, Q, F
 from django.db.models.functions import Coalesce
@@ -81,47 +83,60 @@ class FullJobCardCreateView(APIView):
 
 class JobCardListCreateView(APIView):
     def get(self, request):
+
         start = time.time()
-        qs = JobCard.objects.all()
-        job_status  = request.query_params.get('status')
-        date_param        = request.query_params.get('date')
-        employee    = request.query_params.get('employee')
-        company     = request.query_params.get('company')
-        model       = request.query_params.get('model')
-        vehicle_id  = request.query_params.get('vehicle_id')
-        owner_type  = request.query_params.get('owner_type')  # 'customer' | 'garage'
-        date_from   = request.query_params.get('date_from')
-        date_to     = request.query_params.get('date_to')
-        if request.GET:
-            if job_status:
-                if date_param:
-                    qs = qs.filter(job_card_status=job_status, job_card_date = date_param)
-                else:
-                    qs = qs.filter(job_card_status=job_status, job_card_date__lte = _date.today(), job_card_date__gte = _date.today()-timedelta(days=7))
-            if date_param:
-                qs = qs.filter(job_card_date=date_param)
-            if date_from:
-                qs = qs.filter(job_card_date__gte=date_from)
-            if date_to:
-                qs = qs.filter(job_card_date__lte=date_to)
-            if employee:
-                qs = qs.filter(employee_id=employee)
-            if company:
-                qs = qs.filter(customer_asset__vehicle_company__icontains=company)
-            if model:
-                qs = qs.filter(customer_asset__vehicle_model__icontains=model)
-            if vehicle_id:
-                qs = qs.filter(customer_asset_id=vehicle_id)
-            if owner_type == 'customer':
-                qs = qs.filter(garage_owner__isnull=True)
-            elif owner_type == 'garage':
-                qs = qs.filter(garage_owner__isnull=False)
-        else:
-            qs = qs.filter(job_card_date__lte=_date.today() , job_card_date__gte = _date.today()- timedelta(days =7))
+        job_status = request.query_params.get('status')
+        date_param = request.query_params.get('date')
+        employee   = request.query_params.get('employee')
+        company    = request.query_params.get('company')
+        model      = request.query_params.get('model')
+        vehicle_id = request.query_params.get('vehicle_id')
+        owner_type = request.query_params.get('owner_type')
+        date_from  = request.query_params.get('date_from')
+        date_to    = request.query_params.get('date_to')
+
+        qs = JobCard.objects.select_related(
+            'customer_asset__customer',
+            'employee',
+            'garage_owner',
+        ).prefetch_related(
+            'job_card_services__service',
+            'job_card_services__employees__employee',
+            'job_card_services__products__usages',
+            'payments',
+            'sales_products__inventory__product__product_type',
+        )
+
+        if not date_param and not date_from and not date_to:
+            qs = qs.filter(
+                job_card_date__gte=_date.today() - timedelta(days=7),
+                job_card_date__lte=_date.today(),
+            )
+
+        if job_status:
+            qs = qs.filter(job_card_status=job_status)
+        if date_param:
+            qs = qs.filter(job_card_date=date_param)
+        if date_from:
+            qs = qs.filter(job_card_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(job_card_date__lte=date_to)
+        if employee:
+            qs = qs.filter(employee_id=employee)
+        if company:
+            qs = qs.filter(customer_asset__vehicle_company__icontains=company)
+        if model:
+            qs = qs.filter(customer_asset__vehicle_model__icontains=model)
+        if vehicle_id:
+            qs = qs.filter(customer_asset_id=vehicle_id)
+        if owner_type == 'customer':
+            qs = qs.filter(garage_owner__isnull=True)
+        elif owner_type == 'garage':
+            qs = qs.filter(garage_owner__isnull=False)
+
         serializer = JobCardSerializer(qs, many=True)
         print(f"Serialization took: {time.time() - start:.3f} seconds, queries: {len(connection.queries)}")
         return Response(serializer.data)
-
     # def post(self, request):
     #     serializer = JobCardSerializer(data=request.data)
     #     vehicle_number = serializer.vehicle_number
@@ -248,15 +263,20 @@ class JobCardServiceListCreateView(APIView):
         return Response(serializer.data)
 
     def post(self, request, jobcard_pk):
+        logger.info("Add service to job card requested | jobcard_id=%s service=%s",
+                    jobcard_pk, request.data.get('service'))
         try:
             jobcard = JobCard.objects.get(pk=jobcard_pk)
         except JobCard.DoesNotExist:
+            logger.warning("Add service failed: job card not found | jobcard_id=%s", jobcard_pk)
             return Response(
                 {'error': 'Job card not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
 
         if jobcard.job_card_status == 'COMPLETED':
+            logger.warning("Add service rejected: job card completed | number=%s service=%s",
+                           jobcard.job_card_number, request.data.get('service'))
             return Response(
                 {'error': 'Cannot add service to completed job card'},
                 status=status.HTTP_400_BAD_REQUEST
@@ -287,17 +307,23 @@ class JobCardServiceListCreateView(APIView):
                         pass
                 data['price_at_time'] = price
             except Exception:
-                pass
+                logger.exception("Failed to resolve vehicle price for job card %s service %s; "
+                                 "falling back to serializer default", jobcard_pk, data.get('service'))
 
         serializer = JobCardServiceSerializer(data=data)
         if serializer.is_valid():
             jc_service = serializer.save()
-            JobCardProduct.objects.bulk_create([
+            products = JobCardProduct.objects.bulk_create([
                 JobCardProduct(job_card_service=jc_service, service_product=sp)
                 for sp in ServiceProduct.objects.filter(service=jc_service.service)
             ])
             recalculate_total(jobcard)
+            logger.info("Service added to job card | jobcard=%s service_id=%s price=%s products_linked=%s",
+                        jobcard.job_card_number, jc_service.service_id,
+                        jc_service.price_at_time, len(products))
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Add service validation failed | jobcard=%s errors=%s",
+                       jobcard.job_card_number, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
