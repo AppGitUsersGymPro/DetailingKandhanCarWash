@@ -212,6 +212,7 @@ export default function JobCardDetail() {
       <PageHeader
         title={job.job_card_number}
         subtitle={`${job.customer_name || ''} · ${job.vehicle_number || ''}`}
+        stackOnTablet
         breadcrumbs={
           <Link to="/jobcards" className="hover:text-gray-300 inline-flex items-center gap-1">
             <ChevronLeft size={12} /> Back to Job Cards
