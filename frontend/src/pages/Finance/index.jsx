@@ -357,7 +357,7 @@ export default function FinanceDashboard() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 mb-6">
         {/* Income */}
         <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-gray-200 shrink-0">Income — {periodLabel}</h2>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">
@@ -471,7 +471,7 @@ export default function FinanceDashboard() {
 
         {/* Expense */}
         <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-          <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="px-4 sm:px-5 py-4 border-b border-border flex flex-col gap-2">
             <h2 className="text-sm font-semibold text-gray-200 shrink-0">Expenses — {periodLabel}</h2>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="relative">

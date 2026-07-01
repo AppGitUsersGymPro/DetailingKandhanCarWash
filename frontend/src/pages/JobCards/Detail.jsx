@@ -219,52 +219,54 @@ export default function JobCardDetail() {
           </Link>
         }
         actions={
-          <>
-            <Badge variant={isCompleted ? 'green' : 'yellow'} className="mr-2 text-sm px-3 py-1">
+          <div className="flex flex-col items-stretch sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+            <Badge variant={isCompleted ? 'green' : 'yellow'} className="self-start sm:self-auto sm:mr-2 text-sm px-3 py-1">
               {isCompleted ? 'Completed' : 'In Progress'}
             </Badge>
-            <Button variant="secondary" onClick={() => downloadJobCardInvoice(job)}>
-              <Download size={15} /> Invoice
-            </Button>
-            {job.phone_number && (
-              <Button
-                variant="secondary"
-                onClick={() => openWhatsAppForJobCard(job, toast)}
-                title="Send invoice on WhatsApp"
-                className="text-green-400 hover:text-green-300"
-              >
-                <WaIcon /> WhatsApp
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-3">
+              <Button variant="secondary" onClick={() => downloadJobCardInvoice(job)} className="w-full sm:w-auto">
+                <Download size={15} /> Invoice
               </Button>
-            )}
-            <Link to={`/jobcards/${id}/edit`}>
-              <Button variant="secondary"><Pencil size={15} /> Edit</Button>
-            </Link>
-            {isCompleted && (
-              <Button variant="secondary" onClick={() => setConfirmRevert(true)} loading={reverting}>
-                Revert to In Progress
+              {job.phone_number && (
+                <Button
+                  variant="secondary"
+                  onClick={() => openWhatsAppForJobCard(job, toast)}
+                  title="Send invoice on WhatsApp"
+                  className="w-full sm:w-auto text-green-400 hover:text-green-300"
+                >
+                  <WaIcon /> WhatsApp
+                </Button>
+              )}
+              <Link to={`/jobcards/${id}/edit`} className="w-full sm:w-auto">
+                <Button variant="secondary" className="w-full sm:w-auto"><Pencil size={15} /> Edit</Button>
+              </Link>
+              <Button variant="danger" onClick={() => setConfirmDelete(true)} className="w-full sm:w-auto max-sm:py-1.5 max-sm:text-xs">
+                <Trash size={16} /> Delete
               </Button>
-            )}
-            {!isCompleted && (
-              <Button variant="success" onClick={() => setProductUsed(true)} loading={completing}>
-                <CheckCircle2 size={16} /> Mark Completed
-              </Button>
-            )}
-            <Button variant="danger" onClick={() => setConfirmDelete(true)}>
-              <Trash size={16} /> Delete
-            </Button>
-          </>
+              {isCompleted && (
+                <Button variant="secondary" onClick={() => setConfirmRevert(true)} loading={reverting} className="w-full sm:w-auto">
+                  Revert to In Progress
+                </Button>
+              )}
+              {!isCompleted && (
+                <Button variant="success" onClick={() => setProductUsed(true)} loading={completing} className="col-span-2 sm:col-span-1 w-full sm:w-auto max-sm:py-3 max-sm:text-base">
+                  <CheckCircle2 size={16} /> Mark Completed
+                </Button>
+              )}
+            </div>
+          </div>
         }
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-bg-card border border-border rounded-xl">
-            <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+            <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <h2 className="text-base font-semibold text-gray-100 flex items-center gap-2">
                 <Wrench size={16} /> Services
               </h2>
               {!isCompleted && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button size="sm" variant="secondary" onClick={() => setSalesProductModal(true)}>
                     <ShoppingCart size={14} /> Add Sales Products
                   </Button>
