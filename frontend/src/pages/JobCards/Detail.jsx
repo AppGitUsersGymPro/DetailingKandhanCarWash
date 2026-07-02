@@ -30,7 +30,7 @@ import {
   addJobCardSalesProduct,
   removeJobCardSalesProduct,
 } from '../../api/jobcards';
-import { listServices } from '../../api/services';
+import { listServices, listServicesWithVehicleType } from '../../api/services';
 import { listEmployees } from '../../api/employees';
 import { extractError } from '../../api/axios';
 import { downloadJobCardInvoice } from '../../utils/invoice';
@@ -50,7 +50,6 @@ export default function JobCardDetail() {
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [job, setJob] = useState(null);
-  const [services, setServices] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [productUsed, setProductUsed] = useState(false); // master modal
   const [serviceUsageId, setServiceUsageId] = useState(null); // per-service modal: holds JobCardService.id
@@ -71,14 +70,12 @@ export default function JobCardDetail() {
   const load = async () => {
     setLoading(true);
     try {
-      const [j, s, e] = await Promise.all([
+      const [j, e] = await Promise.all([
         getJobCard(id),
-        listServices(),
         listEmployees(),
       ]);
-      console.log(j);
+      console.log(j.vehicle_type);
       setJob(j);
-      setServices(Array.isArray(s) ? s : (s.results || []));
       setEmployees(Array.isArray(e) ? e : (e.results || []));
     } catch (err) {
       toast.error(extractError(err));
@@ -86,6 +83,8 @@ export default function JobCardDetail() {
       setLoading(false);
     }
   };
+
+
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
 
@@ -500,10 +499,11 @@ export default function JobCardDetail() {
       <AddServiceModal
         open={serviceModal}
         onClose={() => setServiceModal(false)}
-        services={services}
+        // services={services}
         existingIds={(job.job_card_services || []).map((s) => s.service)}
         onAdded={reloadAndDownloadInvoice}
         jobCardId={id}
+        vehicle_type={job.vehicle_type}
       />
 
       <AssignEmployeeModal
@@ -627,12 +627,29 @@ function Detail({ label, value }) {
   );
 }
 
-function AddServiceModal({ open, onClose, services, existingIds, onAdded, jobCardId }) {
+function AddServiceModal({ open, onClose, existingIds, onAdded, jobCardId, vehicle_type }) {
   const toast = useToast();
   const [serviceId, setServiceId] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => { if (open) setServiceId(''); }, [open]);
+  const [loadingServices, setLoadingServices] = useState(false);
+  const [services, setServices] = useState([]);
+  const loadService = () => {
+    setLoadingServices(true);
+    const sv = listServicesWithVehicleType(vehicle_type).then((s) => {
+      setServices(Array.isArray(s) ? s : (s.results || []));
+    }).catch((err) => {
+      toast.error(extractError(err));
+    }).finally
+    {
+      setLoadingServices(false)
+    }
+  }
+  useEffect(() => {
+    if (open) {
+      setServiceId('');
+    }
+    loadService();
+  }, [open]);
 
   const submit = async (e) => {
     e.preventDefault();
