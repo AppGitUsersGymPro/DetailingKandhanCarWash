@@ -494,13 +494,23 @@ class JobCardPaymentDeleteView(APIView):
 
 class FetchVehicleTypeList(APIView):
     def get(self, request, vehicle_type):
-        qs = JobCard.objects.filter(customer_asset__vehicle_type=vehicle_type)
         date       = request.query_params.get('date')
         company    = request.query_params.get('company')
         model      = request.query_params.get('model')
         employee   = request.query_params.get('employee')
         job_status = request.query_params.get('status')
         owner_type = request.query_params.get('owner_type')
+        qs = JobCard.objects.select_related(
+            'customer_asset__customer',
+            'employee',
+            'garage_owner',
+        ).prefetch_related(
+            'job_card_services__service',
+            'job_card_services__employees__employee',
+            'job_card_services__products__usages',
+            'payments',
+            'sales_products__inventory__product__product_type',
+        ).filter(customer_asset__vehicle_type=vehicle_type)
         if request.GET:
             if date:
                 qs = qs.filter(job_card_date=date)

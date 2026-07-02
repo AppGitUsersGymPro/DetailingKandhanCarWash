@@ -24,10 +24,10 @@ const nowLocal = () => {
 
 /* Four-wheeler sub-types — all use the four-wheeler image */
 const FOUR_WHEELER_SUB_TYPES = [
-  { value: 'sedan', label: 'Sedan', description: 'Saloon car' },
-  { value: 'compact_suv', label: 'Compact SUV', description: 'Compact SUV' },
-  { value: 'suv', label: 'SUV', description: 'Full-size SUV' },
-  { value: 'hatchback', label: 'Hatchback', description: 'Hatchback car' },
+  { value: 'sedan', label: 'Sedan 550', description: 'Saloon car' },
+  { value: 'compact_suv', label: 'Compact SUV 600', description: 'Compact SUV' },
+  { value: 'suv', label: 'SUV 700', description: 'Full-size SUV' },
+  { value: 'hatchback', label: 'Hatchback 500', description: 'Hatchback car' },
   { value: 'four_wheeler_others', label: 'Others', description: 'Other 4-wheelers' },
 ];
 
@@ -499,7 +499,7 @@ export default function JobCardCreate() {
         };
       const payloadWithPayment = withPayment ? { ...payload, amount_given: amountGiven, payment_type: paymentType } : payload;
       const created = await createFullJobCard(payloadWithPayment);
-      downloadJobCardInvoice(created);
+      // downloadJobCardInvoice(created);
       toast.success('Job card created — invoice downloaded');
       navigate(`/jobcards/${created.id}`);
     } catch (err) {
