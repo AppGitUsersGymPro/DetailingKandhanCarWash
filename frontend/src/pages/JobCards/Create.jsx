@@ -525,7 +525,7 @@ export default function JobCardCreate() {
 
       <Stepper step={step} skippedCustomer={skippedCustomer} />
 
-      <div className="flex gap-4 items-start mt-4">
+      <div className="flex flex-col sm:flex-row gap-4 sm:items-start mt-4">
         {/* ── Main form card ─────────────────────────────────────── */}
         <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 flex-1 min-w-0 max-w-3xl">
           {step === 1 && (
@@ -640,7 +640,7 @@ export default function JobCardCreate() {
           {/* ── Right-side garage panel — only visible in garage mode, step 1 ── */}
         </div>
         {ownerType === 'garage' && step === 1 && (
-          <div className="w-80 shrink-0 bg-bg-card border border-border rounded-xl overflow-hidden sticky top-4">
+          <div className="order-first sm:order-none w-full sm:w-80 sm:shrink-0 bg-bg-card border border-border rounded-xl overflow-hidden sm:sticky sm:top-4">
             <GaragePanel
               garages={garages}
               loading={loadingGarages}

@@ -184,7 +184,7 @@ function JobCardRow({ jc, navigate }) {
     <div className="bg-bg-card border border-border rounded-xl overflow-hidden hover:border-accent/30 transition-colors">
       {/* Card header */}
       <div
-        className="flex items-start justify-between gap-3 p-4 cursor-pointer hover:bg-bg-hover/40 transition-colors"
+        className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 p-4 cursor-pointer hover:bg-bg-hover/40 transition-colors"
         onClick={() => navigate(`/jobcards/${jc.id}`)}
       >
         <div className="flex-1 min-w-0">
@@ -207,7 +207,7 @@ function JobCardRow({ jc, navigate }) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+        <div className="flex items-center gap-3 flex-wrap sm:shrink-0 sm:justify-end">
           <div className="text-right">
             <div className="font-bold text-gray-100">{fmt(jc.total_amount)}</div>
             {outstanding > 0 && (
