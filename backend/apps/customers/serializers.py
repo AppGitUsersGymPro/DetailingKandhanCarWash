@@ -27,7 +27,7 @@ class GarageOwnerSerializer(serializers.ModelSerializer):
 
 
 class CustomerAssetSerializer(serializers.ModelSerializer):
-    customer_name         = serializers.CharField(source='customer.customer_name', read_only=True)
+    customer_name         = serializers.CharField(source='customer.customer_name', read_only=True, allow_null=True)
     customer_phone_number = serializers.CharField(source='customer.phone_number',  read_only=True)
 
     class Meta:

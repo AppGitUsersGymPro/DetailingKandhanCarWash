@@ -334,7 +334,6 @@ export default function JobCardCreate() {
     const e = {};
     if (ownerType !== 'garage') {
       if (!customer.phone_number.trim()) e.phone_number = 'Required';
-      if (!customerMatch && !customer.customer_name.trim()) e.customer_name = 'Required';
     }
     if (!vehicle.vehicle_type) e.vehicle_type = 'Required';
     if (vehicle.vehicle_type === 'four_wheeler' && !vehicleSubType) {
@@ -850,7 +849,7 @@ function Step2({ customer, vehicle, vehicleSubType, setVehicleSubType, complaint
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Field label="Customer Name" required error={errors.customer_name}>
+              <Field label="Customer Name" >
                 <Input
                   placeholder="John Doe"
                   value={customer.customer_name}

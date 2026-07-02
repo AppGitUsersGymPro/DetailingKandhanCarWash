@@ -85,8 +85,8 @@ function TabBtn({ active, onClick, icon, children }) {
       type="button"
       onClick={onClick}
       className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${active
-          ? 'border-accent text-accent'
-          : 'border-transparent text-gray-400 hover:text-gray-200'
+        ? 'border-accent text-accent'
+        : 'border-transparent text-gray-400 hover:text-gray-200'
         }`}
     >
       {icon}{children}
@@ -749,7 +749,7 @@ function AnalyticsTab() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
                   <XAxis type="number" tick={{ fill: '#6b7280', fontSize: 10 }} tickFormatter={fmtRev} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                  <YAxis type="category" dataKey={(d) => (d.name && d.name.trim()) ? d.name : d.phone_number} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
                   <Tooltip
                     contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
                     formatter={(v) => [fmtRev(v), 'Revenue']}
@@ -779,7 +779,7 @@ function AnalyticsTab() {
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#252a36" horizontal={false} />
                   <XAxis type="number" allowDecimals={false} tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
+                  <YAxis type="category" dataKey={(d) => (d.name && d.name.trim()) ? d.name : d.phone_number} tick={{ fill: '#9ca3af', fontSize: 11 }} axisLine={false} tickLine={false} width={110} />
                   <Tooltip
                     contentStyle={{ background: '#1a1e27', border: '1px solid #252a36', borderRadius: 8, fontSize: 11 }}
                     formatter={(v) => [v + ' visits', 'Visits']}
@@ -938,7 +938,7 @@ function CustomerReportTable() {
     const headers = ['#', 'Customer Name', 'Phone', 'Email', 'Total Visits', 'Last Visit', 'Total Revenue (₹)', 'Status'];
     const dataRows = filtered.map((r, i) => [
       i + 1,
-      r.customer_name,
+      r.customer_name || "Customer " + (i + 1),
       r.phone_number,
       r.email || '',
       r.total_visits,
@@ -1097,7 +1097,7 @@ function CustomerReportTable() {
                   <tr key={r.customer_id} className="border-t border-border hover:bg-bg-hover transition-colors">
                     <td className="px-3 sm:px-4 py-2.5 text-gray-500">{rowNum}</td>
                     <td className="px-3 sm:px-4 py-2.5">
-                      <div className="font-medium text-gray-100 truncate max-w-[160px]">{r.customer_name}</div>
+                      <div className="font-medium text-gray-100 truncate max-w-[160px]">{r.customer_name ? r.customer_name : "Customer " + rowNum}</div>
                     </td>
                     <td className="px-3 sm:px-4 py-2.5 text-gray-300 whitespace-nowrap">{r.phone_number}</td>
                     <td className="px-3 sm:px-4 py-2.5 text-gray-400 truncate max-w-[160px] hidden md:table-cell">
@@ -1165,8 +1165,8 @@ function CustomerReportTable() {
                   type="button"
                   onClick={() => setPage(pageNum)}
                   className={`w-7 h-7 rounded-md text-xs font-medium transition-colors ${pageNum === safePage
-                      ? 'bg-accent text-white'
-                      : 'text-gray-400 hover:text-gray-100 hover:bg-bg-hover'
+                    ? 'bg-accent text-white'
+                    : 'text-gray-400 hover:text-gray-100 hover:bg-bg-hover'
                     }`}
                 >
                   {pageNum}
@@ -1206,7 +1206,7 @@ function CustomerFormModal({ modal, onClose, onSaved }) {
 
   const validate = () => {
     const e = {};
-    if (!form.customer_name.trim()) e.customer_name = 'Required';
+    // if (!form.customer_name.trim()) e.customer_name = 'Required';
     if (!form.phone_number.trim()) e.phone_number = 'Required';
     setErrors(e);
     return !Object.keys(e).length;
@@ -1246,7 +1246,7 @@ function CustomerFormModal({ modal, onClose, onSaved }) {
       }
     >
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Name" required error={errors.customer_name}>
+        <Field label="Name">
           <Input value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} />
         </Field>
         <Field label="Phone Number" required error={errors.phone_number}>

@@ -33,7 +33,7 @@ class CustomerListView(APIView):
             try:
                 from apps.notifications.utils import queue_notification, _get_business_name
                 queue_notification(
-                    recipient_name=customer.customer_name,
+                    recipient_name=customer.customer_name or customer.phone_number,
                     phone=customer.phone_number,
                     trigger_type='customer_welcome',
                     business_name=_get_business_name(),
@@ -194,7 +194,7 @@ class VehicleFetchView(APIView):
             } if is_garage else None,
             'customer': {
                 'id':            asset.customer.id,
-                'customer_name': asset.customer.customer_name,
+                'customer_name': asset.customer.customer_name or "Unknown Person",
                 'phone_number':  asset.customer.phone_number,
                 'email':         asset.customer.email,
             },
@@ -286,7 +286,7 @@ class CustomerFetchView(APIView):
             'exists': True,
             'customer': {
                 'id': customer.id,
-                'customer_name': customer.customer_name,
+                'customer_name': customer.customer_name or "Unknown Number",
                 'phone_number': customer.phone_number,
                 'email': customer.email,
             },

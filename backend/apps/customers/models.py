@@ -62,7 +62,7 @@ class GarageOwner(models.Model):
 
 
 class Customer(models.Model):
-    customer_name = models.CharField(max_length=255)
+    customer_name = models.CharField(max_length=255, blank = True, null = True)
     phone_number  = models.CharField(max_length=20, unique=True)
     email         = models.EmailField(unique=True, blank=True, null=True)
     garage_owner  = models.ForeignKey(
@@ -77,7 +77,7 @@ class Customer(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.customer_name
+        return self.customer_phone_number
     
 class CustomerAsset(models.Model):
     VEHICLE_TYPE=[

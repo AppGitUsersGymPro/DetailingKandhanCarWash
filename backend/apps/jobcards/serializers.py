@@ -81,7 +81,7 @@ class JobCardSerializer(serializers.ModelSerializer):
     vehicle_model      = serializers.CharField(source='customer_asset.vehicle_model', read_only=True)
     vehicle_colour     = serializers.CharField(source='customer_asset.vehicle_colour', read_only=True)
     customer_id        = serializers.IntegerField(source='customer_asset.customer.id', read_only=True)
-    customer_name      = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True)
+    customer_name      = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True, allow_null = True)
     phone_number       = serializers.CharField(source='customer_asset.customer.phone_number', read_only=True)
     employee_name      = serializers.CharField(source='employee.employee_name', read_only=True, default=None)
     garage_owner_id    = serializers.IntegerField(source='garage_owner.id', read_only=True, allow_null=True)
@@ -181,14 +181,12 @@ class JobCardSerializer(serializers.ModelSerializer):
 class CustomerInputSerializer(serializers.Serializer):
     is_new        = serializers.BooleanField()
     id            = serializers.IntegerField(required=False, allow_null=True)
-    customer_name = serializers.CharField(required=False, allow_blank=True)
+    customer_name = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     phone_number  = serializers.CharField(required=False, allow_blank=True)
     email         = serializers.EmailField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         if attrs['is_new']:
-            if not attrs.get('customer_name'):
-                raise serializers.ValidationError({'customer_name': 'Required for new customer'})
             if not attrs.get('phone_number'):
                 raise serializers.ValidationError({'phone_number': 'Required for new customer'})
         elif not attrs.get('id'):

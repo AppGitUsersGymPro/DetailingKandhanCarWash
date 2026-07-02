@@ -62,8 +62,8 @@ class FullJobCardCreateView(APIView):
                 recipient_name = job_card.garage_owner.name
                 phone          = job_card.garage_owner.phone_number
             else:
-                customer       = job_card.customer_asset.customer
-                recipient_name = customer.customer_name
+                customer       = job_card.customer_asset.customer 
+                recipient_name = customer.customer_name or "Unknown Person"
                 phone          = customer.phone_number
             queue_notification(
                 recipient_name=recipient_name,
@@ -137,16 +137,7 @@ class JobCardListCreateView(APIView):
         serializer = JobCardSerializer(qs, many=True)
         print(f"Serialization took: {time.time() - start:.3f} seconds, queries: {len(connection.queries)}")
         return Response(serializer.data)
-    # def post(self, request):
-    #     serializer = JobCardSerializer(data=request.data)
-    #     vehicle_number = serializer.vehicle_number
-    #     customer_name = serializer.customer_name
-    #     existing_vehicle = CustomerAsset.objects.filter(vehicle_number=vehicle_number).first()
-    #     existing_customer = Customer.objects.filter(customer_name=customer_name).first()
-    #     if existing_vehicle and serializer.is_valid():
-    #         serializer.save(customer_asset=existing_vehicle)
-    #         return Response(existing_vehicle, status=status.HTTP_201_CREATED)
-    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 class JobCardDetailView(APIView):
@@ -474,7 +465,7 @@ class JobCardPaymentListCreateView(APIView):
                     recipient_name = customer.customer_name
                     phone          = customer.phone_number
                 queue_notification(
-                    recipient_name=recipient_name,
+                    recipient_name=recipient_name or "Customer",
                     phone=phone,
                     trigger_type='payment_received',
                     amount=f"{payment.amount:,.2f}",
@@ -627,7 +618,7 @@ class CustomerAnalyticsView(APIView):
         # Query 1: revenue + visits per customer (one GROUP BY)
         cust_agg = list(
             JobCard.objects
-            .values('customer_asset__customer_id', 'customer_asset__customer__customer_name')
+            .values('customer_asset__customer_id', 'customer_asset__customer__customer_name', 'customer_asset__customer__phone_number',)
             .annotate(revenue=Sum('total_amount'), visits=Count('id'))
             .order_by()
         )
@@ -640,6 +631,7 @@ class CustomerAnalyticsView(APIView):
                 {
                     'customer_id': r['customer_asset__customer_id'],
                     'name': r['customer_asset__customer__customer_name'],
+                    'phone_number': r['customer_asset__customer__phone_number'],
                     'revenue': float(r['revenue'] or 0),
                     'visits': r['visits'],
                 }
