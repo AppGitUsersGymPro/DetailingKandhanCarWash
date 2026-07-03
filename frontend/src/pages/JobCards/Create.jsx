@@ -1113,10 +1113,11 @@ function PayMentModal({ value, onChange, totalPrice, setAmountGiven, amountGiven
         <Select value={value} onChange={onChange}>
           <option value="cash">Cash</option>
           <option value="upi">UPI</option>
+          <option value="card">Card</option>
         </Select>
       </div>
-      {value === 'cash'
-        ? <CashModal totalPrice={totalPrice} setAmountGiven={setAmountGiven} amountGiven={amountGiven} />
+      {value === 'cash' || value === 'card'
+        ? <CashModal totalPrice={totalPrice} setAmountGiven={setAmountGiven} amountGiven={amountGiven} paymentType={value} />
         : <UPIModal totalPrice={totalPrice} />
       }
     </div>
@@ -1157,11 +1158,11 @@ function Step4({ showPaymentPage, onYes, onNo, paymentType, setPaymentType, tota
   );
 }
 
-function CashModal({ totalPrice, setAmountGiven, amountGiven }) {
+function CashModal({ totalPrice, setAmountGiven, amountGiven, paymentType }) {
   const change = totalPrice - amountGiven
   return (
     <div className="rounded-xl border border-border bg-bg-elev p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-gray-200">Cash Payment</h3>
+      <h3 className="text-sm font-semibold text-gray-200">{paymentType === 'card' ? 'Card' : 'Cash'} Payment</h3>
       <Field label="Total Amount">
         <Input value={`₹${totalPrice.toFixed(2)}`} disabled />
       </Field>
