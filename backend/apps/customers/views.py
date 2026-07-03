@@ -26,9 +26,13 @@ class CustomerListView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
+        logger.info("Customer create requested | name=%s phone=%s",
+                    request.data.get('customer_name'), request.data.get('phone_number'))
         serializer = CustomerSerializer(data=request.data)
         if serializer.is_valid():
             customer = serializer.save()
+            logger.info("Customer created | id=%s name=%s phone=%s",
+                        customer.id, customer.customer_name, customer.phone_number)
 
             try:
                 from apps.notifications.utils import queue_notification, _get_business_name
@@ -42,6 +46,7 @@ class CustomerListView(APIView):
                 logger.exception("customer_welcome notification failed for customer %s", customer.id)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Customer create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -72,7 +77,10 @@ class CustomerDetailView(APIView):
         serializer = CustomerSerializer(customer, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Customer updated | id=%s name=%s phone=%s",
+                        customer.id, customer.customer_name, customer.phone_number)
             return Response(serializer.data)
+        logger.warning("Customer update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
@@ -82,6 +90,7 @@ class CustomerDetailView(APIView):
                 {'error': 'Customer not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        logger.info("Customer deleted | id=%s name=%s", customer.id, customer.customer_name)
         customer.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -108,10 +117,16 @@ class CustomerAssetListView(APIView):
         # Inject customer id into request data
         data = request.data.copy()
         data['customer'] = customer.id
+        logger.info("Vehicle add requested | customer_id=%s vehicle_number=%s",
+                    customer.id, data.get('vehicle_number'))
         serializer = CustomerAssetSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            asset = serializer.save()
+            logger.info("Vehicle added | id=%s customer_id=%s vehicle_number=%s type=%s",
+                        asset.id, customer.id, asset.vehicle_number, asset.vehicle_type)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Vehicle add validation failed | customer_id=%s errors=%s",
+                       customer.id, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -142,7 +157,9 @@ class CustomerAssetDetailView(APIView):
         serializer = CustomerAssetSerializer(asset, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Vehicle updated | id=%s vehicle_number=%s", asset.id, asset.vehicle_number)
             return Response(serializer.data)
+        logger.warning("Vehicle update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def patch(self, request, pk):
@@ -155,7 +172,9 @@ class CustomerAssetDetailView(APIView):
         serializer = CustomerAssetSerializer(asset, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Vehicle updated | id=%s vehicle_number=%s", asset.id, asset.vehicle_number)
             return Response(serializer.data)
+        logger.warning("Vehicle update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
@@ -165,6 +184,7 @@ class CustomerAssetDetailView(APIView):
                 {'error': 'Vehicle not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        logger.info("Vehicle deleted | id=%s vehicle_number=%s", asset.id, asset.vehicle_number)
         asset.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
     
@@ -331,10 +351,15 @@ class GarageOwnerListCreateView(APIView):
         return Response(GarageOwnerSerializer(qs, many=True).data)
 
     def post(self, request):
+        logger.info("Garage create requested | garage_name=%s phone=%s",
+                    request.data.get('garage_name'), request.data.get('phone_number'))
         serializer = GarageOwnerSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            garage = serializer.save()
+            logger.info("Garage created | id=%s garage_name=%s phone=%s",
+                        garage.id, garage.garage_name, garage.phone_number)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Garage create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -358,12 +383,16 @@ class GarageOwnerDetailView(APIView):
         serializer = GarageOwnerSerializer(obj, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Garage updated | id=%s garage_name=%s phone=%s",
+                        obj.id, obj.garage_name, obj.phone_number)
             return Response(serializer.data)
+        logger.warning("Garage update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         obj = self.get_object(pk)
         if not obj:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        logger.info("Garage deleted | id=%s garage_name=%s", obj.id, obj.garage_name)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

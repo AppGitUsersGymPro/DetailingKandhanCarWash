@@ -39,10 +39,14 @@ class EmployeeListView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
+        logger.info("Employee create requested | name=%s", request.data.get('employee_name'))
         serializer = EmployeeSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            employee = serializer.save()
+            logger.info("Employee created | id=%s name=%s code=%s",
+                        employee.id, employee.employee_name, employee.employee_code)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Employee create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -67,13 +71,18 @@ class EmployeeDetailView(APIView):
         serializer = EmployeeSerializer(employee, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Employee updated | id=%s name=%s code=%s",
+                        employee.id, employee.employee_name, employee.employee_code)
             return Response(serializer.data)
+        logger.warning("Employee update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         employee = self.get_object(pk)
         if not employee:
             return Response({'error': 'Employee not found'}, status=status.HTTP_404_NOT_FOUND)
+        logger.info("Employee deleted | id=%s name=%s code=%s",
+                    employee.id, employee.employee_name, employee.employee_code)
         employee.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -87,10 +96,13 @@ class ShiftListView(APIView):
         return Response(ShiftSerializer(shifts, many=True).data)
 
     def post(self, request):
+        logger.info("Shift create requested | name=%s", request.data.get('shift_name'))
         serializer = ShiftSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            shift = serializer.save()
+            logger.info("Shift created | id=%s name=%s", shift.id, shift.shift_name)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Shift create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -109,13 +121,16 @@ class ShiftDetailView(APIView):
         serializer = ShiftSerializer(obj, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Shift updated | id=%s name=%s", obj.id, obj.shift_name)
             return Response(serializer.data)
+        logger.warning("Shift update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         obj = get_or_404(Shift, pk)
         if not obj:
             return Response({'error': 'Shift not found'}, status=status.HTTP_404_NOT_FOUND)
+        logger.info("Shift deleted | id=%s name=%s", obj.id, obj.shift_name)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

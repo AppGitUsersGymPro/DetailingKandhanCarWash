@@ -1,3 +1,4 @@
+import logging
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from rest_framework.views import APIView
@@ -8,6 +9,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Setting, UserProfile
 from .serializers import SettingSerializer
+
+logger = logging.getLogger(__name__)
 
 
 # ── Permission ────────────────────────────────────────────────────────────────
@@ -24,9 +27,10 @@ class IsAdminRole(BasePermission):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
+        username = request.data.get('username', '')
+        logger.info("Login attempt | username=%s", username)
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
-            username = request.data.get('username', '')
             try:
                 user = User.objects.select_related('profile__employee').get(username=username)
                 profile = getattr(user, 'profile', None)
@@ -40,10 +44,15 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 else:
                     response.data['employee_id']   = None
                     response.data['employee_name'] = None
+                logger.info("Login success | username=%s role=%s employee_id=%s",
+                            username, response.data['role'], response.data['employee_id'])
             except User.DoesNotExist:
                 response.data['role']          = 'admin'
                 response.data['employee_id']   = None
                 response.data['employee_name'] = None
+                logger.info("Login success | username=%s role=admin (no profile)", username)
+        else:
+            logger.warning("Login failed | username=%s status=%s", username, response.status_code)
         return response
 
 

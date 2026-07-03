@@ -32,10 +32,13 @@ class VendorListCreateView(APIView):
         return Response(serializer.data)
 
     def post(self, request):
+        logger.info("Vendor create requested | name=%s", request.data.get('vendor_name'))
         serializer = VendorSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            vendor = serializer.save()
+            logger.info("Vendor created | id=%s name=%s", vendor.id, vendor.vendor_name)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Vendor create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -61,13 +64,16 @@ class VendorDetailView(APIView):
         serializer = VendorSerializer(vendor, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Vendor updated | id=%s name=%s", vendor.id, vendor.vendor_name)
             return Response(VendorSerializer(self._get_vendor(pk)).data)
+        logger.warning("Vendor update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         vendor = self._get_vendor(pk)
         if not vendor:
             return Response({'error': 'Vendor not found'}, status=status.HTTP_404_NOT_FOUND)
+        logger.info("Vendor deleted | id=%s name=%s", vendor.id, vendor.vendor_name)
         vendor.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -154,10 +160,13 @@ class ProductListCreateView(APIView):
         return Response(ProductSerializer(qs, many=True).data)
 
     def post(self, request):
+        logger.info("Product create requested | name=%s", request.data.get('product_name'))
         serializer = ProductSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            product = serializer.save()
+            logger.info("Product created | id=%s name=%s", product.id, product.product_name)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Product create validation failed | errors=%s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -178,13 +187,16 @@ class ProductDetailView(APIView):
         serializer = ProductSerializer(product, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Product updated | id=%s name=%s", product.id, product.product_name)
             return Response(ProductSerializer(self._get(pk)).data)
+        logger.warning("Product update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
         product = self._get(pk)
         if not product:
             return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+        logger.info("Product deleted | id=%s name=%s", product.id, product.product_name)
         product.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

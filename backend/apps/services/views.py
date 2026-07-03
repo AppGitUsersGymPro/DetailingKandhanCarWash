@@ -75,7 +75,10 @@ class ServiceDetailView(APIView):
         serializer = ServiceSerializer(service, data=request.data)
         if serializer.is_valid():
             serializer.save()
+            logger.info("Service updated | id=%s name=%s price=%s",
+                        service.id, service.service_name, service.service_price)
             return Response(serializer.data)
+        logger.warning("Service update validation failed | id=%s errors=%s", pk, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
@@ -85,6 +88,7 @@ class ServiceDetailView(APIView):
                 {'error': 'Service not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        logger.info("Service deleted | id=%s name=%s", service.id, service.service_name)
         service.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 

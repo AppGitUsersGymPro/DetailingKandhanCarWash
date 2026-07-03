@@ -499,7 +499,6 @@ export default function JobCardDetail() {
       <AddServiceModal
         open={serviceModal}
         onClose={() => setServiceModal(false)}
-        // services={services}
         existingIds={(job.job_card_services || []).map((s) => s.service)}
         onAdded={reloadAndDownloadInvoice}
         jobCardId={id}

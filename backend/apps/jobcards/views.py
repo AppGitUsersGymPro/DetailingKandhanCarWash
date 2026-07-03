@@ -167,11 +167,20 @@ class JobCardDetailView(APIView):
             )
 
         old_status = jobcard.job_card_status
+        logger.info("Job card update requested | number=%s old_status=%s",
+                    jobcard.job_card_number, old_status)
 
         serializer = JobCardSerializer(jobcard, data=request.data, partial=True)
         if serializer.is_valid():
             updated_jobcard = serializer.save()
-            print(updated_jobcard)
+            if old_status != updated_jobcard.job_card_status:
+                logger.info("Job card status toggled | number=%s %s -> %s",
+                            updated_jobcard.job_card_number, old_status,
+                            updated_jobcard.job_card_status)
+            else:
+                logger.info("Job card updated | number=%s status=%s total=%s",
+                            updated_jobcard.job_card_number,
+                            updated_jobcard.job_card_status, updated_jobcard.total_amount)
             if old_status != 'COMPLETED' and updated_jobcard.job_card_status == 'COMPLETED':
                 updated_jobcard.vehicle_exit_time = timezone.now()
                 updated_jobcard.save()
@@ -232,6 +241,8 @@ class JobCardDetailView(APIView):
                         )
 
             return Response(JobCardSerializer(updated_jobcard).data)
+        logger.warning("Job card update validation failed | number=%s errors=%s",
+                       jobcard.job_card_number, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def delete(self, request, pk):
@@ -241,6 +252,7 @@ class JobCardDetailView(APIView):
                 {'error': 'Job card not found'},
                 status=status.HTTP_404_NOT_FOUND
             )
+        logger.info("Job card deleted | id=%s number=%s", jobcard.id, jobcard.job_card_number)
         jobcard.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -322,7 +334,6 @@ class JobCardServiceDeleteView(APIView):
     def patch(self, request, pk):
         try:
             jc_service = JobCardService.objects.get(pk=pk)
-            print (jc_service.service_status)
         except JobCardService.DoesNotExist:
             return Response(
                 {'error': 'Not found'},
@@ -332,6 +343,10 @@ class JobCardServiceDeleteView(APIView):
         serializer = JobCardServiceSerializer(jc_service, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         updated = serializer.save()
+        if old_status != updated.service_status:
+            logger.info("Job card service toggled | jobcard=%s service=%s %s -> %s",
+                        updated.job_card.job_card_number, updated.service_id,
+                        old_status, updated.service_status)
 
         if old_status != 'completed' and updated.service_status == 'completed':
             try:
@@ -442,14 +457,19 @@ class JobCardPaymentListCreateView(APIView):
         try:
             jobcard = JobCard.objects.get(pk=jobcard_pk)
         except JobCard.DoesNotExist:
+            logger.warning("Job card payment failed: job card not found | jobcard_id=%s", jobcard_pk)
             return Response({'error': 'Job card not found'}, status=status.HTTP_404_NOT_FOUND)
         data = request.data.copy()
         data['job_card'] = jobcard.id
+        logger.info("Job card payment requested | number=%s amount=%s method=%s",
+                    jobcard.job_card_number, data.get('amount'), data.get('payment_method'))
         serializer = JobCardPaymentSerializer(data=data)
         if serializer.is_valid():
             amount = Decimal(str(data.get('amount', '0')))
             gst_col, base_col = compute_gst_split(jobcard, amount)
             payment = serializer.save(gst_collected=gst_col, base_collected=base_col)
+            logger.info("Job card payment recorded | number=%s amount=%s method=%s",
+                        jobcard.job_card_number, payment.amount, payment.payment_method)
 
             try:
                 from apps.notifications.utils import queue_notification, _get_business_name
@@ -478,6 +498,8 @@ class JobCardPaymentListCreateView(APIView):
                 logger.exception("payment_received notification failed for job card %s", jobcard.job_card_number)
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        logger.warning("Job card payment validation failed | number=%s errors=%s",
+                       jobcard.job_card_number, serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
