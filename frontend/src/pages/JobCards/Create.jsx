@@ -317,7 +317,7 @@ export default function JobCardCreate() {
 
   /* Effective pricing type derived from vehicle info */
   const effectivePricingType = vehicleMatch
-    ? getEffectivePricingType(vehicleMatch.vehicle?.vehicle_type, vehicleSubType)
+    ? getEffectivePricingType(vehicleMatch.vehicle.vehicle_type, vehicleSubType)
     : getEffectivePricingType(vehicle.vehicle_type, vehicleSubType);
 
   /* ── Validation ─────────────────────────────────────────────────────────── */
@@ -378,6 +378,8 @@ export default function JobCardCreate() {
           setSelectedGarage(result.garage);
         }
         setVehicleMatch({ customer: result.customer, vehicle: result.vehicle });
+        setVehicleSubType(result.vehicle?.vehicle_sub_type || '');
+        console.log(result);
         setMatchedTier(resolveTier(result.customer?.id));
         setCustomerMatch(null);
         setStep(3);
@@ -467,6 +469,7 @@ export default function JobCardCreate() {
           vehicle_number: vehicleMatch.vehicle?.vehicle_number ?? jobCard.vehicle_number.trim(),
           vehicle_name: vehicleMatch.vehicle?.vehicle_name ?? '',
           vehicle_type: vehicleMatch.vehicle?.vehicle_type ?? '',
+          vehicle_sub_type: vehicleMatch.vehicle?.vehicle_sub_type ?? null,
         }
         : {
           is_new: true,
@@ -477,6 +480,7 @@ export default function JobCardCreate() {
           vehicle_model: vehicle.vehicle_model.trim(),
           vehicle_colour: vehicle.vehicle_colour.trim(),
           vehicle_type: vehicle.vehicle_type,
+          vehicle_sub_type: currentVehicleType === 'four_wheeler' ? (vehicleSubType || null) : null,
         };
 
       /* Build payload — garage mode omits customer, sends garage_id instead */

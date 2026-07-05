@@ -203,6 +203,7 @@ class VehicleInputSerializer(serializers.Serializer):
     vehicle_model   = serializers.CharField(required=False, allow_blank=True)
     vehicle_colour  = serializers.CharField(required=False, allow_blank=True)
     vehicle_type    = serializers.CharField(required=False, allow_blank=True)
+    vehicle_sub_type  = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     def validate(self, attrs):
         if not attrs.get('is_new') and not attrs.get('id'):
@@ -303,6 +304,7 @@ class FullJobCardCreateSerializer(serializers.Serializer):
                     vehicle_model=v.get('vehicle_model', ''),
                     vehicle_colour=v.get('vehicle_colour', ''),
                     vehicle_type=v.get('vehicle_type') or 'other',
+                    vehicle_sub_type=v.get('vehicle_sub_type') or None,
                 )
         else:
             asset = CustomerAsset.objects.get(pk=v['id'])

@@ -2,7 +2,7 @@ import logging
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, OuterRef, Subquery
 from .models import Customer, CustomerAsset, VehicleCompany, VehicleModel, VehicleColour, GarageOwner, normalize_phone
 
 logger = logging.getLogger(__name__)
@@ -226,6 +226,7 @@ class VehicleFetchView(APIView):
                 'vehicle_model':  asset.vehicle_model,
                 'vehicle_colour': asset.vehicle_colour,
                 'vehicle_type':   asset.vehicle_type,
+                'vehicle_sub_type': asset.vehicle_sub_type,
             },
         }, status=status.HTTP_200_OK)
 

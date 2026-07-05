@@ -44,6 +44,14 @@ const VTYPE_LABEL = {
   other: 'Other',
 };
 
+const VSUBTYPE_LABEL = {
+  sedan: 'Sedan',
+  compact_suv: 'Compact SUV',
+  suv: 'SUV',
+  hatchback: 'Hatchback',
+  four_wheeler_others: 'Others',
+};
+
 /* ═══ Main page ═════════════════════════════════════════════════════════════ */
 export default function CustomersVehicles() {
   const [tab, setTab] = useState('customers'); // 'customers' | 'vehicles' | 'garages' | 'analytics'
@@ -294,7 +302,15 @@ function VehiclesTab() {
     {
       key: 'vehicle_type',
       header: 'Type',
-      render: (r) => <span className="text-gray-400 text-xs">{VTYPE_LABEL[r.vehicle_type] || r.vehicle_type}</span>,
+      render: (r) => {
+        const sub = VSUBTYPE_LABEL[r.vehicle_sub_type];
+        return (
+          <div>
+            <span className="text-gray-400 text-xs">{VTYPE_LABEL[r.vehicle_type] || r.vehicle_type}</span>
+            {sub && <div className="text-[10px] text-gray-500 mt-0.5">{sub}</div>}
+          </div>
+        );
+      },
     },
     {
       key: 'customer_name',
@@ -388,7 +404,10 @@ function VehiclesTab() {
                 <div key={r.id} className="bg-bg-card border border-border rounded-xl p-3 cursor-pointer hover:border-accent/40 transition-colors" onClick={() => navigate(`/customers/vehicles/${r.id}`)}>
                   <div className="flex items-start justify-between gap-2 mb-1.5">
                     <span className="text-sm font-bold text-sky-300">{r.vehicle_number}</span>
-                    <span className="text-[10px] text-gray-500 bg-bg-elev px-2 py-0.5 rounded-full border border-border">{VTYPE_LABEL[r.vehicle_type] || r.vehicle_type}</span>
+                    <span className="text-[10px] text-gray-500 bg-bg-elev px-2 py-0.5 rounded-full border border-border">
+                      {VTYPE_LABEL[r.vehicle_type] || r.vehicle_type}
+                      {VSUBTYPE_LABEL[r.vehicle_sub_type] && ` · ${VSUBTYPE_LABEL[r.vehicle_sub_type]}`}
+                    </span>
                   </div>
                   {parts.length > 0 && <div className="text-xs text-gray-400 mb-1">{parts.join(' · ')}</div>}
                   <div className="text-xs text-gray-200">{r.customer_name}</div>

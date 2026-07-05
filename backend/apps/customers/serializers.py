@@ -29,10 +29,15 @@ class GarageOwnerSerializer(serializers.ModelSerializer):
 class CustomerAssetSerializer(serializers.ModelSerializer):
     customer_name         = serializers.CharField(source='customer.customer_name', read_only=True, allow_null=True)
     customer_phone_number = serializers.CharField(source='customer.phone_number',  read_only=True)
+    # Derived from the vehicle's latest job card (only set when the view annotates it).
+    vehicle_subtype      = serializers.CharField(source='vehicle_sub_type', read_only=True, allow_null=True)
 
     class Meta:
         model = CustomerAsset
         fields = '__all__'
+
+    # def get_vehicle_sub_type(self, obj):
+    #     return getattr(obj, 'vehicle_sub_type', None)
 
 
 class CustomerSerializer(serializers.ModelSerializer):

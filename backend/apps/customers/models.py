@@ -3,6 +3,16 @@ import re
 from django.db import models
 
 
+
+VEHICLE_SUB_TYPE_CHOICES = [
+    ('sedan',               'Sedan'),
+    ('compact_suv',         'Compact SUV'),
+    ('suv',                 'SUV'),
+    ('hatchback',           'Hatchback'),
+    ('four_wheeler_others', '4-Wheeler Others'),
+]
+
+    
 def normalize_phone(value):
     if not value:
         return ''
@@ -93,6 +103,7 @@ class CustomerAsset(models.Model):
     vehicle_model = models.CharField(max_length=255, blank=True, default='')
     vehicle_colour = models.CharField(max_length=255, blank=True, default='')
     vehicle_type = models.CharField(max_length=20, choices=VEHICLE_TYPE, default='other')
+    vehicle_sub_type = models.CharField(max_length=20, choices=VEHICLE_SUB_TYPE_CHOICES, blank=True, default='')
     last_service_date = models.DateField(null=True, blank=True)
     next_service_date = models.DateField(null=True, blank=True)
 
