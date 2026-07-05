@@ -304,7 +304,7 @@ class FullJobCardCreateSerializer(serializers.Serializer):
                     vehicle_model=v.get('vehicle_model', ''),
                     vehicle_colour=v.get('vehicle_colour', ''),
                     vehicle_type=v.get('vehicle_type') or 'other',
-                    vehicle_sub_type=v.get('vehicle_sub_type') or None,
+                    vehicle_sub_type=v.get('vehicle_sub_type') or '',
                 )
         else:
             asset = CustomerAsset.objects.get(pk=v['id'])
