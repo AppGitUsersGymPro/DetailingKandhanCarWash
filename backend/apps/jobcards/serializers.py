@@ -164,14 +164,18 @@ class JobCardSerializer(serializers.ModelSerializer):
 
     def get_usage_complete(self, obj):
         """True if every completed stock-reducing service with linked products has at least one usage recorded."""
-        completed_svcs = obj.job_card_services.filter(service_status='completed')
-        for svc in completed_svcs:
+        for svc in obj.job_card_services.all():
+            if svc.service_status != 'completed':
+                continue
             if not svc.service.reduces_stock:
                 continue
-            if svc.products.exists():
-                has_any = JobCardProductUsage.objects.filter(
-                    job_card_product__job_card_service=svc
-                ).exists()
+            products = list(svc.products.all())
+            if products:
+                has_any = any(
+                usage
+                for product in products
+                for usage in product.usages.all()  # uses prefetch cache, no query
+            )
                 if not has_any:
                     return False
         return True
