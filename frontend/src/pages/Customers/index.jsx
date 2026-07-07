@@ -223,7 +223,7 @@ function CustomersTab() {
                 <div className="flex items-center justify-end gap-1 mt-2 pt-2 border-t border-border" onClick={e => e.stopPropagation()}>
                   <button className="px-2.5 py-1 text-xs text-white bg-accent rounded hover:bg-accent-hover" onClick={() => navigate(`/customers/${r.id}`)}>View</button>
                   <button onClick={() => setModal({ mode: 'edit', data: r })} className="p-1.5 text-gray-400 hover:text-accent"><Pencil size={14} /></button>
-                  <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400"><Trash2 size={14} /></button>
+                  {/* <button onClick={() => setConfirmDel(r)} className="p-1.5 text-gray-400 hover:text-red-400"><Trash2 size={14} /></button> */}
                 </div>
               </div>
             ))}

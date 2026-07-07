@@ -230,18 +230,27 @@ class JobCardCoreSerializer(serializers.Serializer):
     total_amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
 
 
+class SelectedServicesSerializer(serializers.Serializer):
+    service_id = serializers.IntegerField()
+    price_at_time = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
+
 class FullJobCardCreateSerializer(serializers.Serializer):
     job_card  = JobCardCoreSerializer()
     customer  = CustomerInputSerializer(required=False)
     vehicle   = VehicleInputSerializer()
-    services  = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
+    # services  = serializers.ListField(child=serializers.IntegerField(), allow_empty=False)
     garage_id = serializers.IntegerField(required=False, allow_null=True)
     amount_given = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     payment_type = serializers.CharField(required=False, allow_blank=True)
+    services = SelectedServicesSerializer(many=True)
 
     def validate(self, attrs):
         if not attrs.get('garage_id') and not attrs.get('customer'):
             raise serializers.ValidationError({'customer': 'Required when garage_id is not provided.'})
+        if attrs.get('services') is None :
+            raise serializers.ValidationError({'services': 'At least one service must be selected.'})
         return attrs
 
     @transaction.atomic
@@ -326,13 +335,6 @@ class FullJobCardCreateSerializer(serializers.Serializer):
         vehicle_sub_type = jc.pop('vehicle_sub_type', None) or None
 
         # Determine effective pricing type for vehicle-specific service prices
-        vehicle_type = asset.vehicle_type
-        if vehicle_type == 'four_wheeler' and vehicle_sub_type:
-            effective_pricing_type = vehicle_sub_type
-        elif vehicle_type == 'two_wheeler':
-            effective_pricing_type = 'two_wheeler'
-        else:
-            effective_pricing_type = None
 
         job_card = JobCard.objects.create(
             customer_asset=asset,
@@ -343,14 +345,8 @@ class FullJobCardCreateSerializer(serializers.Serializer):
         )
 
         for sid in validated_data['services']:
-            svc = Service.objects.get(pk=sid)
-            price = svc.service_price
-            if effective_pricing_type:
-                try:
-                    vp = ServiceVehiclePrice.objects.get(service=svc, vehicle_type=effective_pricing_type)
-                    price = vp.price
-                except ServiceVehiclePrice.DoesNotExist:
-                    pass
+            svc = Service.objects.get(pk=sid.get('service_id'))
+            price = sid.get('price_at_time')
             jc_service = JobCardService.objects.create(
                 job_card=job_card,
                 service=svc,

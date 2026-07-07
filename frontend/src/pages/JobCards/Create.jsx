@@ -261,6 +261,8 @@ export default function JobCardCreate() {
   const [services, setServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = useState([]);
+  /* Per-service editable price overrides: { [serviceId]: string|number } */
+  const [servicePrices, setServicePrices] = useState({});
   const [gstPercent, setGstPercent] = useState('18');
   const [employees, setEmployees] = useState([]);
   const [tiers, setTiers] = useState({ high_value: [], frequent: [] });
@@ -301,6 +303,7 @@ export default function JobCardCreate() {
   const updateJobCard = (k, v) => setJobCard((f) => ({ ...f, [k]: v }));
   const updateCustomer = (k, v) => setCustomer((f) => ({ ...f, [k]: v }));
   const updateVehicle = (k, v) => setVehicle((f) => ({ ...f, [k]: v }));
+  const updateServicePrice = (id, value) => setServicePrices((prev) => ({ ...prev, [id]: value }));
 
   useEffect(() => {
     if (step !== 3 || services.length > 0) return;
@@ -380,7 +383,7 @@ export default function JobCardCreate() {
         }
         setVehicleMatch({ customer: result.customer, vehicle: result.vehicle });
         setVehicleSubType(result.vehicle?.vehicle_sub_type || '');
-        console.log(result);
+
         setMatchedTier(resolveTier(result.customer?.id));
         setCustomerMatch(null);
         setStep(3);
@@ -435,9 +438,21 @@ export default function JobCardCreate() {
 
   const visibleServices = filterServicesForVehicle(services, effectivePricingType);
 
+  /* Effective price for a service: user override if edited, else the vehicle/base price */
+  const effectivePriceFor = (s) => {
+    const override = servicePrices[s.id];
+    if (override !== undefined) return Number(override) || 0;
+    return getServicePrice(s, effectivePricingType);
+  };
+
+  /* Payload of selected services with their (possibly reduced) price_at_time */
+  const selectedServices = visibleServices
+    .filter((s) => selectedServiceIds.includes(s.id))
+    .map((s) => ({ service_id: s.id, price_at_time: effectivePriceFor(s) }));
+
   const basePrice = visibleServices
     .filter((s) => selectedServiceIds.includes(s.id))
-    .reduce((sum, s) => sum + getServicePrice(s, effectivePricingType), 0);
+    .reduce((sum, s) => sum + effectivePriceFor(s), 0);
   const gstAmount = basePrice * Number(gstPercent || 0) / 100;
   const totalPrice = basePrice + gstAmount;
 
@@ -494,7 +509,7 @@ export default function JobCardCreate() {
           job_card: jobCardCore,
           garage_id: selectedGarage.id,
           vehicle: vehiclePayload,
-          services: selectedServiceIds,
+          services: selectedServices,
         }
         : {
           job_card: jobCardCore,
@@ -504,7 +519,7 @@ export default function JobCardCreate() {
               ? { is_new: false, id: customerMatch.customer?.id ?? null, customer_name: customerMatch.customer?.customer_name ?? '', phone_number: customerMatch.customer?.phone_number ?? '', email: customerMatch.customer?.email ?? '' }
               : { is_new: true, id: null, customer_name: customer.customer_name.trim(), phone_number: customer.phone_number.trim(), email: customer.email.trim() },
           vehicle: vehiclePayload,
-          services: selectedServiceIds,
+          services: selectedServices,
         };
       const payloadWithPayment = withPayment ? { ...payload, amount_given: amountGiven, payment_type: paymentType } : payload;
       const created = await createFullJobCard(payloadWithPayment);
@@ -579,6 +594,8 @@ export default function JobCardCreate() {
               loading={loadingServices}
               selectedIds={selectedServiceIds}
               onToggle={toggleService}
+              servicePrices={servicePrices}
+              updateServicePrice={updateServicePrice}
               effectivePricingType={effectivePricingType}
               basePrice={basePrice}
               gstPercent={gstPercent}
@@ -965,7 +982,7 @@ function Step2({ customer, vehicle, vehicleSubType, setVehicleSubType, complaint
 }
 
 /* ─── Step 3: Services ───────────────────────────────────────────────────── */
-function Step3({ services, loading, selectedIds, onToggle, effectivePricingType, basePrice, gstPercent, gstAmount, totalPrice, onGstChange, matchedCustomer, matchedVehicle, matchedTier, jobCardForm, updateJobCard, employees, errors, ownerType, selectedGarage }) {
+function Step3({ services, loading, selectedIds, onToggle, servicePrices, updateServicePrice, effectivePricingType, basePrice, gstPercent, gstAmount, totalPrice, onGstChange, matchedCustomer, matchedVehicle, matchedTier, jobCardForm, updateJobCard, employees, errors, ownerType, selectedGarage }) {
   if (loading) return <Loading label="Loading services..." />;
 
   return (
@@ -1049,6 +1066,7 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
             {services.map((s) => {
               const checked = selectedIds.includes(s.id);
               const price = getServicePrice(s, effectivePricingType);
+              const priceValue = servicePrices[s.id] !== undefined ? servicePrices[s.id] : price;
               const hasCustomPrice = effectivePricingType && (s.vehicle_prices || []).some(vp => vp.vehicle_type === effectivePricingType);
               return (
                 <button
@@ -1064,7 +1082,18 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
                       <div className="text-xs text-gray-500 mt-0.5">{s.service_code}</div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-sm font-semibold text-gray-100">₹{price.toFixed(2)}</div>
+                      <div className="flex items-center gap-1 justify-end">
+                        <span className="text-sm text-gray-400">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={priceValue}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => updateServicePrice(s.id, e.target.value)}
+                          className="w-24 bg-bg border border-border rounded-md px-2 py-1 text-sm text-right text-gray-100 focus:outline-none focus:border-accent"
+                        />
+                      </div>
                       {hasCustomPrice && (
                         <div className="text-[10px] text-accent mt-0.5">vehicle price</div>
                       )}
