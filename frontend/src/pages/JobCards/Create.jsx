@@ -346,6 +346,7 @@ export default function JobCardCreate() {
   const validateStep3 = () => {
     const e = {};
     if (!jobCard.employee) e.employee = 'Required';
+    if (selectedServiceIds.length === 0) e.selectedServiceIds = 'Please select at least one service';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -418,6 +419,10 @@ export default function JobCardCreate() {
 
   const handleNextFromStep3 = () => {
     if (!validateStep3()) return;
+    if (selectedServiceIds.length === 0) {
+      toast.error('Please select at least one service');
+      return;
+    }
     setStep(4);
 
   }
@@ -968,7 +973,7 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
 
       {/* ── Vehicle KM, Expected Exit Time, Employee (moved from Step 1) ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-4 border-b border-border">
-        <Field label="Vehicle KM" required error={errors.vehicle_kilometers}>
+        <Field label="Vehicle KM">
           <Input
             type="number"
             step="0.01"
@@ -977,7 +982,7 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
             onChange={(e) => updateJobCard('vehicle_kilometers', e.target.value)}
           />
         </Field>
-        <Field label="Expected Exit Time" required error={errors.vehicle_expected_exit_time}>
+        <Field label="Expected Exit Time" >
           <Input
             type="datetime-local"
             value={jobCardForm.vehicle_expected_exit_time}
@@ -989,7 +994,7 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
             value={jobCardForm.employee}
             onChange={(e) => updateJobCard('employee', e.target.value)}
           >
-            <option value="">Select employee (optional)</option>
+            <option value="">Select employee </option>
             {employees.map(emp => (
               <option key={emp.id} value={emp.id}>{emp.employee_name}</option>
             ))}
@@ -1027,7 +1032,7 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
         </div>
       )}
 
-      <div>
+      <Field error={errors.selectedServiceIds}>
         <h3 className="text-sm font-semibold text-gray-200 mb-1">Select Services</h3>
         {effectivePricingType && (
           <p className="text-xs text-gray-500 mb-3">
@@ -1076,7 +1081,7 @@ function Step3({ services, loading, selectedIds, onToggle, effectivePricingType,
             })}
           </div>
         )}
-      </div>
+      </Field>
 
       {/* GST + price summary */}
       <div className="rounded-md bg-bg-elev border border-border p-4 space-y-2 text-sm">
