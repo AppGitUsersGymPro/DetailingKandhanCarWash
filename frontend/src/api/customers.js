@@ -32,3 +32,4 @@ export const listGarageOwners  = (params) => api.get('customers/garages/', { par
 export const createGarageOwner = (data)   => api.post('customers/garages/', data).then(r => r.data);
 export const updateGarageOwner = (id, data) => api.put(`customers/garages/${id}/`, data).then(r => r.data);
 export const deleteGarageOwner = (id)     => api.delete(`customers/garages/${id}/`).then(r => r.data);
+export const changeCustomer = (vehicleNumber, newCustomerId) => api.patch(`customers/assets/${vehicleNumber}/change-customer/`,  { customer_id: newCustomerId } ).then(r => r.data);

@@ -80,8 +80,8 @@ class JobCardSerializer(serializers.ModelSerializer):
     vehicle_company    = serializers.CharField(source='customer_asset.vehicle_company', read_only=True)
     vehicle_model      = serializers.CharField(source='customer_asset.vehicle_model', read_only=True)
     vehicle_colour     = serializers.CharField(source='customer_asset.vehicle_colour', read_only=True)
-    customer_id        = serializers.IntegerField(source='customer_asset.customer.id', read_only=True)
-    customer_name      = serializers.CharField(source='customer_asset.customer.customer_name', read_only=True, allow_null = True)
+    customer_id        = serializers.IntegerField(source='customer.id', read_only=True)
+    customer_name      = serializers.CharField(source='customer.customer_name', read_only=True, allow_null = True)
     phone_number       = serializers.CharField(source='customer_asset.customer.phone_number', read_only=True)
     employee_name      = serializers.CharField(source='employee.employee_name', read_only=True, default=None)
     garage_owner_id    = serializers.IntegerField(source='garage_owner.id', read_only=True, allow_null=True)
@@ -290,6 +290,9 @@ class FullJobCardCreateSerializer(serializers.Serializer):
                         phone_number=phone,
                         email=email,
                     )
+                    customer.save()
+                    customer_id = customer.id
+
             else:
                 customer = Customer.objects.get(pk=c['id'])
 
@@ -341,6 +344,7 @@ class FullJobCardCreateSerializer(serializers.Serializer):
             employee_id=employee_id,
             vehicle_sub_type=vehicle_sub_type,
             garage_owner=job_card_garage,
+            customer_id = customer.id,
             **jc,
         )
 

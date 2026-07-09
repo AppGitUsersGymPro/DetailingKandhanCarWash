@@ -307,7 +307,7 @@ class CustomerFetchView(APIView):
             'exists': True,
             'customer': {
                 'id': customer.id,
-                'customer_name': customer.customer_name or "Unknown Number",
+                'customer_name': customer.customer_name or "Unknown Member",
                 'phone_number': customer.phone_number,
                 'email': customer.email,
             },
@@ -397,3 +397,26 @@ class GarageOwnerDetailView(APIView):
         logger.info("Garage deleted | id=%s garage_name=%s", obj.id, obj.garage_name)
         obj.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+    
+class ChangeCustomerView(APIView):
+    def patch(self, request, vehicle_number):
+        new_customer_id = request.data.get('customer_id')
+        print(f"Received request to change customer for vehicle {vehicle_number} to customer {new_customer_id}")
+        if not new_customer_id:
+            return Response({'error': 'customer_id is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            asset = CustomerAsset.objects.get(vehicle_number=vehicle_number)
+        except CustomerAsset.DoesNotExist:
+            return Response({'error': 'Vehicle not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            new_customer = Customer.objects.get(id=new_customer_id)
+        except Customer.DoesNotExist:
+            return Response({'error': 'Customer not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        asset.customer = new_customer
+        asset.save()
+        
+        logger.info("Vehicle customer changed | vehicle_number=%s new_customer_id=%s", vehicle_number, new_customer_id)
+        return Response({'message': 'Customer changed successfully'}, status=status.HTTP_200_OK)

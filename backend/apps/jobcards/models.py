@@ -19,6 +19,7 @@ class JobCard(models.Model):
     ]
     job_card_number = models.CharField(max_length=255, unique=True, blank=True)
     customer_asset = models.ForeignKey('customers.CustomerAsset', on_delete=models.PROTECT)
+    customer = models.ForeignKey('customers.Customer', on_delete=models.PROTECT, blank=True, null=True)
     job_card_date = models.DateField()
     vehicle_kilometers = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     vehicle_entry_time = models.DateTimeField()

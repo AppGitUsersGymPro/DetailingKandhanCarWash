@@ -4,12 +4,16 @@ import { ChevronLeft, Car, User, ClipboardList, Calendar, AlertTriangle } from '
 import PageHeader from '../../components/PageHeader';
 import Loading from '../../components/Loading';
 import Badge from '../../components/Badge';
+import Modal from '../../components/Modal';
+import Button from '../../components/Button';
+import { Field, Input } from '../../components/Field';
 import { useToast } from '../../components/Toast';
-import { getAsset } from '../../api/customers';
+import { getAsset, changeCustomer, checkCustomer } from '../../api/customers';
+import { CustomerFormModal } from './index';
 const PAY_CFG = {
-  paid:    { label: 'Paid',    cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
+  paid: { label: 'Paid', cls: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50' },
   partial: { label: 'Partial', cls: 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50' },
-  unpaid:  { label: 'Unpaid',  cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
+  unpaid: { label: 'Unpaid', cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
 };
 import { listJobCards } from '../../api/jobcards';
 import { extractError } from '../../api/axios';
@@ -51,7 +55,7 @@ export default function VehicleDetail() {
   const [loading, setLoading] = useState(true);
   const [vehicle, setVehicle] = useState(null);
   const [jobs, setJobs] = useState([]);
-
+  const [changeCustomerModalOpen, setChangeCustomerModalOpen] = useState(false);
   useEffect(() => {
     async function load() {
       setLoading(true);
@@ -70,6 +74,16 @@ export default function VehicleDetail() {
     }
     load();
   }, [vehicleId]); // eslint-disable-line
+
+  // Lightweight refetch (no full-page loading flash) — used after changing the owner
+  const refetchVehicle = async () => {
+    try {
+      const v = await getAsset(vehicleId);
+      setVehicle(v);
+    } catch (err) {
+      toast.error(extractError(err));
+    }
+  };
 
   if (loading) return <Loading />;
   if (!vehicle) return <div className="text-gray-400 p-4">Vehicle not found</div>;
@@ -102,13 +116,12 @@ export default function VehicleDetail() {
         <div className="space-y-4">
 
           {/* Service date card */}
-          <div className={`rounded-xl border p-4 flex items-start gap-3 ${
-            isOverdue
-              ? 'bg-red-900/20 border-red-700/50'
-              : nextServiceDate
-                ? 'bg-emerald-900/15 border-emerald-700/40'
-                : 'bg-bg-card border-border'
-          }`}>
+          <div className={`rounded-xl border p-4 flex items-start gap-3 ${isOverdue
+            ? 'bg-red-900/20 border-red-700/50'
+            : nextServiceDate
+              ? 'bg-emerald-900/15 border-emerald-700/40'
+              : 'bg-bg-card border-border'
+            }`}>
             <div className={`mt-0.5 ${isOverdue ? 'text-red-400' : 'text-emerald-400'}`}>
               {isOverdue ? <AlertTriangle size={18} /> : <Calendar size={18} />}
             </div>
@@ -134,6 +147,9 @@ export default function VehicleDetail() {
             <div className="px-5 py-3 border-b border-border flex items-center gap-2">
               <User size={15} className="text-gray-400" />
               <h2 className="text-sm font-semibold text-gray-100">Customer</h2>
+              <button className="ml-auto text-xs text-accent hover:text-accent/80" onClick={() => setChangeCustomerModalOpen(true)}>
+                Change Customer
+              </button>
             </div>
             <dl className="px-5 py-3">
               <Row label="Name" value={vehicle.customer_name || '—'} />
@@ -142,6 +158,15 @@ export default function VehicleDetail() {
               )}
             </dl>
           </div>
+
+          {changeCustomerModalOpen && (
+            <ChangeCustomerModal
+              vehicle={vehicle}
+              onClose={() => setChangeCustomerModalOpen(false)}
+              onChanged={refetchVehicle}
+            />
+          )}
+
 
           {/* Vehicle details card */}
           <div className="bg-bg-card border border-border rounded-xl">
@@ -153,8 +178,8 @@ export default function VehicleDetail() {
               <Row label="Vehicle Number" value={vehicle.vehicle_number} />
               <Row label="Type" value={VTYPE_LABEL[vehicle.vehicle_type] || vehicle.vehicle_type || '—'} />
               {vehicle.vehicle_company && <Row label="Company / Make" value={vehicle.vehicle_company} />}
-              {vehicle.vehicle_model   && <Row label="Model" value={vehicle.vehicle_model} />}
-              {vehicle.vehicle_colour  && <Row label="Colour" value={vehicle.vehicle_colour} />}
+              {vehicle.vehicle_model && <Row label="Model" value={vehicle.vehicle_model} />}
+              {vehicle.vehicle_colour && <Row label="Colour" value={vehicle.vehicle_colour} />}
               <Row label="Last Service" value={fmtDate(vehicle.last_service_date)} />
               <Row
                 label="Next Service"
@@ -180,8 +205,8 @@ export default function VehicleDetail() {
             <div className="divide-y divide-border max-h-[600px] overflow-y-auto">
               {jobs.map((j) => {
                 const total = Number(j.total_amount || 0);
-                const paid  = Number(j.paid_amount  || 0);
-                const due   = total - paid;
+                const paid = Number(j.paid_amount || 0);
+                const due = total - paid;
                 return (
                   <Link
                     key={j.id}
@@ -230,3 +255,123 @@ export default function VehicleDetail() {
     </div>
   );
 }
+
+const ChangeCustomerModal = ({ vehicle, onClose, onChanged }) => {
+  const toast = useToast();
+  const [phone, setPhone] = useState('');
+  // lookup: null (not searched yet) | { status: 'found', customer } | { status: 'not_found' }
+  const [lookup, setLookup] = useState(null);
+  const [looking, setLooking] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [createModal, setCreateModal] = useState(null); // null | { mode: 'create' }
+
+  const handleLookup = async () => {
+    const value = phone.trim();
+    if (!value) return;
+    setLooking(true);
+    setLookup(null);
+    try {
+      const res = await checkCustomer(value);
+      setLookup(res.exists ? { status: 'found', customer: res.customer } : { status: 'not_found' });
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setLooking(false);
+    }
+  };
+
+  // Assign an existing customer (by id) as this vehicle's owner
+  const assign = async (customerId) => {
+    setAssigning(true);
+    try {
+      await changeCustomer(vehicle.vehicle_number, customerId);
+      toast.success('Vehicle owner updated');
+      await onChanged?.();
+      onClose();
+    } catch (err) {
+      toast.error(extractError(err));
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  // Called after CustomerFormModal creates a new customer → auto-assign them
+  const handleCreated = async (created) => {
+    if (created?.id) await assign(created.id);
+  };
+
+  return (
+    <>
+      <Modal
+        open
+        onClose={onClose}
+        title="Change Vehicle Owner"
+        footer={<Button variant="secondary" onClick={onClose}>Cancel</Button>}
+      >
+        <div className="space-y-4">
+          <Field label="Customer Phone Number">
+            <div className="flex gap-2">
+              <Input
+                value={phone}
+                onChange={(e) => { setPhone(e.target.value); setLookup(null); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleLookup(); } }}
+                placeholder="Enter customer phone number"
+                autoFocus
+              />
+              <Button onClick={handleLookup} loading={looking} disabled={!phone.trim()}>
+                Lookup
+              </Button>
+            </div>
+          </Field>
+
+          {lookup?.status === 'found' && (
+            <div className="rounded-lg border border-emerald-700/40 bg-emerald-900/15 p-4">
+              <div className="text-xs font-medium text-emerald-300 mb-2">Customer found</div>
+              <div className="text-sm text-gray-100 font-semibold">
+                {lookup.customer.customer_name || 'Unknown Member'}
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">{lookup.customer.phone_number}</div>
+              {lookup.customer.email && (
+                <div className="text-xs text-gray-500 mt-0.5">{lookup.customer.email}</div>
+              )}
+              <Button
+                className="mt-3 w-full sm:w-auto"
+                onClick={() => assign(lookup.customer.id)}
+                loading={assigning}
+              >
+                Set as owner
+              </Button>
+            </div>
+          )}
+
+          {lookup?.status === 'not_found' && (
+            <div className="rounded-lg border border-border bg-bg-elev p-4">
+              <div className="text-sm text-gray-300">
+                No customer found with <span className="font-medium text-gray-100">{phone.trim()}</span>.
+              </div>
+              <div className="text-xs text-gray-500 mt-1">Create a new customer and assign them to this vehicle.</div>
+              <Button
+                className="mt-3 w-full sm:w-auto"
+                onClick={() => setCreateModal({ mode: 'create', data: { phone_number: phone.trim() } })}
+              >
+                Create New Customer
+              </Button>
+            </div>
+          )}
+
+          {!lookup && !looking && (
+            <p className="text-xs text-gray-500">
+              Enter the new owner's phone number and press Lookup.
+            </p>
+          )}
+        </div>
+      </Modal>
+
+      <CustomerFormModal
+        modal={createModal}
+        onClose={() => setCreateModal(null)}
+        onSaved={handleCreated}
+      />
+    </>
+  );
+};

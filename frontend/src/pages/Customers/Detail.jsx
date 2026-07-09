@@ -37,7 +37,8 @@ export default function CustomerDetail() {
       setCustomer(c);
       const arr = Array.isArray(j) ? j : (j.results || []);
       const customerVehicleIds = (c.vehicles || []).map((v) => v.id);
-      setJobs(arr.filter((job) => customerVehicleIds.includes(job.customer_asset)));
+      // setJobs(arr.filter((job) => customerVehicleIds.includes(job.customer_asset)));
+      setJobs(arr.filter((job) => job.customer_id === c.id));
     } catch (err) {
       toast.error(extractError(err));
     } finally {

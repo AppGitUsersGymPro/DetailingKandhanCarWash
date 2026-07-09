@@ -368,7 +368,7 @@ class FinanceIncomeView(APIView):
                 'id':                f'pay-{p.id}',
                 'date':              p.payment_date.isoformat(),
                 'job_card_number':   jc.job_card_number,
-                'customer_name':     jc.customer_asset.customer.customer_name if jc.customer_asset and jc.customer_asset.customer.customer_name else 'Customer',
+                'customer_name':     jc.customer.customer_name if jc.customer.customer_name else 'Customer',
                 'vehicle_number':    jc.customer_asset.vehicle_number if jc.customer_asset else '',
                 'services':          service_names,
                 'gst_percent':       str(jc.gst_percent),

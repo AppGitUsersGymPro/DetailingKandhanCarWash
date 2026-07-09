@@ -96,9 +96,10 @@ class JobCardListCreateView(APIView):
         date_to    = request.query_params.get('date_to')
 
         qs = JobCard.objects.select_related(
-            'customer_asset__customer',
+            'customer_asset',
             'employee',
             'garage_owner',
+            'customer',
         ).prefetch_related(
             'job_card_services__service',
             'job_card_services__employees__employee',

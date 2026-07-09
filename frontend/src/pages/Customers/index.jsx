@@ -1208,7 +1208,7 @@ function CustomerReportTable() {
 }
 
 /* ═══ Customer form modal ════════════════════════════════════════════════════ */
-function CustomerFormModal({ modal, onClose, onSaved }) {
+export function CustomerFormModal({ modal, onClose, onSaved }) {
   const toast = useToast();
   const [form, setForm] = useState({ customer_name: '', phone_number: '', email: '' });
   const [submitting, setSubmitting] = useState(false);
@@ -1216,10 +1216,12 @@ function CustomerFormModal({ modal, onClose, onSaved }) {
 
   useEffect(() => {
     if (!modal) return;
-    setForm(modal.mode === 'edit'
-      ? { customer_name: modal.data.customer_name || '', phone_number: modal.data.phone_number || '', email: modal.data.email || '' }
-      : { customer_name: '', phone_number: '', email: '' }
-    );
+    const d = modal.data || {};
+    setForm({
+      customer_name: d.customer_name || '',
+      phone_number: d.phone_number || '',
+      email: d.email || '',
+    });
     setErrors({});
   }, [modal]);
 
@@ -1236,14 +1238,15 @@ function CustomerFormModal({ modal, onClose, onSaved }) {
     if (!validate()) return;
     setSubmitting(true);
     try {
+      let saved;
       if (modal.mode === 'edit') {
-        await updateCustomer(modal.data.id, form);
+        saved = await updateCustomer(modal.data.id, form);
         toast.success('Customer updated');
       } else {
-        await createCustomer(form);
+        saved = await createCustomer(form);
         toast.success('Customer created');
       }
-      onSaved();
+      onSaved(saved);
       onClose();
     } catch (err) {
       toast.error(extractError(err));
