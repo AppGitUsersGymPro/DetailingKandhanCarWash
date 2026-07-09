@@ -180,7 +180,7 @@ export default function CustomerDetail() {
 
 function VehicleModal({ modal, onClose, onSaved, customerId }) {
   const toast = useToast();
-  const [form, setForm] = useState({ vehicle_number: '', vehicle_name: '', vehicle_type: '' });
+  const [form, setForm] = useState({ vehicle_number: '', vehicle_name: '', vehicle_type: '', vehicle_subtype: '', vehicle_company: '', vehicle_model: '', vehicle_colour: '' });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
   const [vehicleType, setVehicleType] = useState('');
@@ -191,9 +191,13 @@ function VehicleModal({ modal, onClose, onSaved, customerId }) {
         vehicle_number: modal.data.vehicle_number || '',
         vehicle_name: modal.data.vehicle_name || '',
         vehicle_type: modal.data.vehicle_type || '',
+        vehicle_subtype: modal.data.vehicle_subtype || '',
+        vehicle_company: modal.data.vehicle_company || '',
+        vehicle_model: modal.data.vehicle_model || '',
+        vehicle_colour: modal.data.vehicle_colour || '',
       });
     } else {
-      setForm({ vehicle_number: '', vehicle_name: '', vehicle_type: '' });
+      setForm({ vehicle_number: '', vehicle_name: '', vehicle_type: '', vehicle_subtype: '', vehicle_company: '', vehicle_model: '', vehicle_colour: '' });
     }
     setErrors({});
   }, [modal]);
@@ -258,6 +262,40 @@ function VehicleModal({ modal, onClose, onSaved, customerId }) {
             <option value="four_wheeler">Four Wheeler</option>
             <option value="three_wheeler">Three Wheeler</option>
           </Select>
+        </Field>
+        {
+          form.vehicle_type === 'four_wheeler' && (
+            <Field label="Vehicle Subtype">
+              <Select value={form.vehicle_subtype} onChange={(e) => setForm({ ...form, vehicle_subtype: e.target.value })}>
+                <option value="hatchback">Hatchback</option>
+                <option value="sedan">Sedan</option>
+                <option value="suv">SUV</option>
+                <option value="compact_suv">Compact SUV</option>
+                <option value="four_wheeler_others">Other</option>
+              </Select>
+            </Field>
+          )
+        }
+        <Field label="Vehicle Company">
+          <Input
+            placeholder="Honda / Hyundai / Maruti..."
+            value={form.vehicle_company}
+            onChange={(e) => setForm({ ...form, vehicle_company: e.target.value })}
+          />
+        </Field>
+        < Field label="Vehicle Model">
+          <Input
+            placeholder="City / Creta / Swift..."
+            value={form.vehicle_model}
+            onChange={(e) => setForm({ ...form, vehicle_model: e.target.value })}
+          />
+        </Field>
+        <Field label="Vehicle Colour">
+          <Input
+            placeholder="White / Black / Silver..."
+            value={form.vehicle_colour}
+            onChange={(e) => setForm({ ...form, vehicle_colour: e.target.value })}
+          />
         </Field>
       </form>
     </Modal>

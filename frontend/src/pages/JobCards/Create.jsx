@@ -641,6 +641,13 @@ export default function JobCardCreate() {
                   <ChevronLeft size={14} /> Back
                 </Button>
               )}
+              {
+                step === 4 && (
+                  <Button variant="secondary" type="button" onClick={() => setStep(3)}>
+                    <ChevronLeft size={14} /> Back
+                  </Button>
+                )
+              }
               {step === 1 && (
                 <Button type="button" loading={checking} onClick={handleNextFromStep1}>
                   Next <ChevronRight size={14} />
