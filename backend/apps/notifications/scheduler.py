@@ -4,6 +4,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from django.conf import settings
+from django.db import connection
 
 logger = logging.getLogger(__name__)
 
@@ -12,6 +13,7 @@ _scheduler = None
 
 def _job_service_reminder():
     """Runs daily at 10 AM — queues reminders for vehicles due in 2 days AND due today."""
+    connection.close()
     try:
         from apps.notifications.jobs import notify_service_due, notify_service_due_today
         logger.info("Scheduler: running service reminder (2-day advance)")
@@ -24,6 +26,7 @@ def _job_service_reminder():
 
 def _job_auto_absent():
     """Runs every hour — marks absent any employee whose shift started > threshold hours ago with no check-in."""
+    connection.close() 
     try:
         from apps.notifications.jobs import run_auto_absent
         logger.info("Scheduler: running auto-absent check")
