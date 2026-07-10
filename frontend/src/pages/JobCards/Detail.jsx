@@ -66,6 +66,9 @@ export default function JobCardDetail() {
   const [deleting, setDeleting] = useState(false);
   const [salesProductModal, setSalesProductModal] = useState(false);
   const [confirmRemoveSalesProduct, setConfirmRemoveSalesProduct] = useState(null);
+  const [selectedService, setSelectedService] = useState(null);
+  const [selectedServicePrice, setSelectedServicePrice] = useState(0);
+  const [selectedServiceId, setSelectedServiceId] = useState(0);
 
   const load = async () => {
     setLoading(true);
@@ -498,6 +501,12 @@ export default function JobCardDetail() {
 
       <AddServiceModal
         open={serviceModal}
+        selectedService={selectedService}
+        setSelectedService={setSelectedService}
+        selectedServicePrice={selectedServicePrice}
+        setSelectedServicePrice={setSelectedServicePrice}
+        selectedServiceId={selectedServiceId}
+        setSelectedServiceId={setSelectedServiceId}
         onClose={() => setServiceModal(false)}
         existingIds={(job.job_card_services || []).map((s) => s.service)}
         onAdded={reloadAndDownloadInvoice}
@@ -626,7 +635,7 @@ function Detail({ label, value }) {
   );
 }
 
-function AddServiceModal({ open, onClose, existingIds, onAdded, jobCardId, vehicle_type }) {
+function AddServiceModal({ open, onClose, existingIds, onAdded, jobCardId, vehicle_type, selectedService, setSelectedService, selectedServicePrice, setSelectedServicePrice, selectedServiceId, setSelectedServiceId }) {
   const toast = useToast();
   const [serviceId, setServiceId] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -646,16 +655,26 @@ function AddServiceModal({ open, onClose, existingIds, onAdded, jobCardId, vehic
   useEffect(() => {
     if (open) {
       setServiceId('');
+      setSelectedService('');
+      setSelectedServiceId('');
+      setSelectedServicePrice('');
     }
     loadService();
   }, [open]);
 
+
+  const handleChange = (service_name, service_id, service_price) => {
+    setSelectedService(service_name);
+    setSelectedServiceId(service_id);
+    setSelectedServicePrice(service_price);
+  }
   const submit = async (e) => {
+    console.log("Pressed add button");
     e.preventDefault();
-    if (!serviceId) return;
+    if (!selectedServiceId) return;
     setSubmitting(true);
     try {
-      await addJobCardService(jobCardId, { service: Number(serviceId) });
+      await addJobCardService(jobCardId, { service: Number(selectedServiceId), price_at_time: Number(selectedServicePrice) });
       toast.success('Service added');
       onAdded();
       onClose();
@@ -676,12 +695,15 @@ function AddServiceModal({ open, onClose, existingIds, onAdded, jobCardId, vehic
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={submit} loading={submitting} disabled={!serviceId}>Add</Button>
+          <Button onClick={submit} loading={submitting} disabled={!selectedServiceId}>Add</Button>
         </>
       }
     >
       <Field label="Service" required>
-        <Select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+        <Select value={selectedServiceId} onChange={(e) => {
+          const selected = available.find(s => s.id === Number(e.target.value));
+          handleChange(selected?.service_name, e.target.value, selected?.service_price)
+        }}>
           <option value="">Select service...</option>
           {available.map((s) => (
             <option key={s.id} value={s.id}>{s.service_name} — ₹{s.service_price}</option>
@@ -690,6 +712,19 @@ function AddServiceModal({ open, onClose, existingIds, onAdded, jobCardId, vehic
       </Field>
       {available.length === 0 && (
         <p className="text-xs text-gray-500 mt-3">All services have already been added.</p>
+      )}
+      {selectedServiceId && (
+        <div className="mt-4 rounded-md border border-border bg-bg-elev p-3">
+          <p className="text-xs font-medium text-gray-400 mb-2">Selected service</p>
+          <p className="text-sm font-medium text-gray-100 mb-3">{selectedService}</p>
+          <Field label="Price (₹)">
+            <Input
+              type="number"
+              value={selectedServicePrice}
+              onChange={(e) => setSelectedServicePrice(e.target.value)}
+            />
+          </Field>
+        </div>
       )}
     </Modal>
   );
