@@ -94,6 +94,7 @@ class JobCardListCreateView(APIView):
         owner_type = request.query_params.get('owner_type')
         date_from  = request.query_params.get('date_from')
         date_to    = request.query_params.get('date_to')
+        phone_number = request.query_params.get('phone_number')
 
         qs = JobCard.objects.select_related(
             'customer_asset',
@@ -130,6 +131,8 @@ class JobCardListCreateView(APIView):
             qs = qs.filter(customer_asset__vehicle_model__icontains=model)
         if vehicle_id:
             qs = qs.filter(customer_asset_id=vehicle_id)
+        if phone_number:
+            qs = qs.filter(customer_phone_number__icontains = phone_number)
         if owner_type == 'customer':
             qs = qs.filter(garage_owner__isnull=True)
         elif owner_type == 'garage':
