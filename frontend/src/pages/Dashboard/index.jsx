@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { ClipboardList, Users, IndianRupee, AlertTriangle, ArrowRight, Calendar, ChevronDown } from 'lucide-react';
+import { ClipboardList, Users, IndianRupee, AlertTriangle, ArrowRight, Calendar, ChevronDown, FileText } from 'lucide-react';
 
 const DailyReport = lazy(() => import('./DailyReport'));
 import PageHeader from '../../components/PageHeader';
@@ -13,6 +13,7 @@ import { listJobCards } from '../../api/jobcards';
 import { listInventory } from '../../api/inventory';
 import { getDashboardStats } from '../../api/finance';
 import { extractError } from '../../api/axios';
+import { tokens } from '../../api/auth';
 
 const fmt = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -50,6 +51,7 @@ const FILTERS = [
 
 export default function Dashboard() {
   const toast = useToast();
+  const isStaff = tokens.getRole() === 'staff';
   const [dateFilter, setDateFilter]   = useState('month');
   const [loading, setLoading]         = useState(true);
   const [stats, setStats]             = useState({ active: 0, customers: 0, revenue: 0 });
@@ -103,22 +105,32 @@ export default function Dashboard() {
         title="Dashboard"
         subtitle="Overview of your detailing workshop"
         actions={
-          <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 flex-wrap">
-            <Calendar size={13} className="text-gray-500 ml-1 shrink-0" />
-            {FILTERS.map(f => (
-              <button
-                key={f.key}
-                onClick={() => setDateFilter(f.key)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
-                  dateFilter === f.key
-                    ? 'bg-accent text-white shadow-sm'
-                    : 'text-gray-400 hover:text-gray-100'
-                }`}
+          <>
+            {!isStaff && (
+              <Link
+                to="/estimation/new"
+                className="inline-flex items-center gap-2 rounded-md font-medium transition-colors px-4 py-2 text-sm bg-accent hover:bg-accent-hover text-white border border-accent"
               >
-                {f.label}
-              </button>
-            ))}
-          </div>
+                <FileText size={15} /> Add Estimation
+              </Link>
+            )}
+            <div className="flex items-center gap-1 bg-bg-elev border border-border rounded-lg p-1 flex-wrap">
+              <Calendar size={13} className="text-gray-500 ml-1 shrink-0" />
+              {FILTERS.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setDateFilter(f.key)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
+                    dateFilter === f.key
+                      ? 'bg-accent text-white shadow-sm'
+                      : 'text-gray-400 hover:text-gray-100'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </>
         }
       />
 

@@ -44,6 +44,56 @@ export function openWhatsAppForJobCard(job, toast) {
   window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
+const ESTIMATION_VEHICLE_LABEL = {
+  two_wheeler: 'Two Wheeler',
+  three_wheeler: 'Three Wheeler',
+  four_wheeler: 'Four Wheeler',
+  others: 'Others',
+};
+
+export function openWhatsAppForEstimation(estimation, toast) {
+  const raw   = (estimation.customer_phone_number || '').replace(/\D/g, '');
+  const phone = raw.length === 10 ? `91${raw}` : raw;
+  if (!phone) {
+    if (toast) toast.error('No phone number on record for this customer.');
+    return;
+  }
+
+  const items = estimation.items || [];
+  const total = Number(estimation.total_amount || 0)
+    || items.reduce((sum, it) => sum + Number(it.amount || 0), 0);
+
+  const date = estimation.created_at
+    ? new Date(estimation.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+    : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const vehicleLabel = [
+    ESTIMATION_VEHICLE_LABEL[estimation.vehicle_type] || estimation.vehicle_type,
+    estimation.vehicle_type === 'four_wheeler' ? estimation.vehicle_sub_type : null,
+  ].filter(Boolean).join(' · ');
+
+  const services = items
+    .map(it => `  • ${it.service_name} — ₹${Number(it.amount || 0).toLocaleString('en-IN')}`)
+    .join('\n');
+
+  const msg = [
+    `Hi ${estimation.customer_name || 'there'} 👋`,
+    '',
+    `📄 *Estimate*`,
+    `📅 *Date:* ${date}`,
+    estimation.vehicle_name || vehicleLabel
+      ? `🚗 *Vehicle:* ${[estimation.vehicle_name, vehicleLabel ? `(${vehicleLabel})` : null].filter(Boolean).join(' ')}`
+      : null,
+    services ? `🔧 *Services:*\n${services}` : null,
+    '',
+    `💰 *Estimated Total: ₹${total.toLocaleString('en-IN')}*`,
+    '',
+    `Thank you! 🙏`,
+  ].filter(l => l !== null).join('\n');
+
+  window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
 export function openWhatsAppForSale(record, toast) {
   const raw   = (record.phone_number || '').replace(/\D/g, '');
   const phone = raw.length === 10 ? `91${raw}` : raw;

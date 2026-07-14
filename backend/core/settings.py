@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     'apps.finance',
     'apps.site_settings',
     'apps.notifications',
+    'apps.estimation',
 ]
 
 MIDDLEWARE = [

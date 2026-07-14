@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, Users, Wrench,
-  UserCog, Truck, ScanLine, Sparkles, LogOut, User, TrendingUp, Settings2, X, ShoppingCart, Bell, BookOpen,
+  UserCog, Truck, ScanLine, Sparkles, LogOut, User, TrendingUp, Settings2, X, ShoppingCart, Bell, BookOpen, FileText,
 } from 'lucide-react';
 import { tokens, logout } from '../api/auth';
 
@@ -9,7 +9,8 @@ const NAV_GROUPS = [
   {
     label: null,
     items: [
-      { to: '/',         icon: LayoutDashboard, label: 'Dashboard',            end: true,  staffAllowed: true },
+      { to: '/',           icon: LayoutDashboard, label: 'Dashboard',   end: true,  staffAllowed: true  },
+      { to: '/estimation', icon: FileText,        label: 'Estimation',  end: false, staffAllowed: false },
     ],
   },
   {

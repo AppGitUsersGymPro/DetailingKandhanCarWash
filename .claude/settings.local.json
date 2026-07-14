@@ -10,7 +10,10 @@
       "Bash(python manage.py check)",
       "Bash(python -m py_compile apps/services/views.py apps/jobcards/views.py)",
       "Bash(python -m py_compile apps/site_settings/views.py apps/customers/views.py apps/services/views.py apps/vendors/views.py apps/jobcards/views.py apps/employees/views.py)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(npx vite *)",
+      "Bash(../venv/Scripts/python.exe manage.py check)",
+      "Bash(./venv/Scripts/python.exe manage.py check)"
     ]
   }
 }

@@ -23,6 +23,9 @@ import Employees from './pages/Employees';
 import Vendors from './pages/Vendors';
 import Finance from './pages/Finance';
 import Kiosk from './pages/Kiosk';
+import Estimation from './pages/Estimation';
+import EstimationCreate from './pages/Estimation/estimation';
+import EstimationDetail from './pages/Estimation/Detail';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
 import UserGuide from './pages/UserGuide';
@@ -65,6 +68,11 @@ export default function App() {
 
             {/* Kiosk — staff allowed */}
             <Route path="kiosk" element={<Kiosk />} />
+
+            {/* Estimation — admin only */}
+            <Route path="estimation" element={<AdminOnly><Estimation /></AdminOnly>} />
+            <Route path="estimation/new" element={<AdminOnly><EstimationCreate /></AdminOnly>} />
+            <Route path="estimation/:id" element={<AdminOnly><EstimationDetail /></AdminOnly>} />
 
             {/* Admin-only routes */}
             <Route path="services" element={<AdminOnly><Services /></AdminOnly>} />
