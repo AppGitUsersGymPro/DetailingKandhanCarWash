@@ -68,8 +68,6 @@ def run_auto_absent():
         _get_admin_phone, _get_absent_threshold_hours, is_notify_enabled,
     )
 
-    if not is_notify_enabled('NOTIFY_AUTO_ABSENT'):
-        return
 
     now       = timezone.localtime()
     today     = now.date()
@@ -118,6 +116,8 @@ def run_auto_absent():
             continue
 
         # Notify employee
+        if not is_notify_enabled('NOTIFY_AUTO_ABSENT'):
+            return
         try:
             queue_notification(
                 recipient_name=emp.employee_name,
