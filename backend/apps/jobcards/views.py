@@ -11,6 +11,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.pagination import PageNumberPagination
 from django.utils import timezone
 from django.db import connection
 logger = logging.getLogger(__name__)
@@ -81,6 +82,12 @@ class FullJobCardCreateView(APIView):
         return Response(JobCardSerializer(job_card).data, status=status.HTTP_201_CREATED)
 
 
+class JobCardPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class JobCardListCreateView(APIView):
     def get(self, request):
 
@@ -95,6 +102,11 @@ class JobCardListCreateView(APIView):
         date_from  = request.query_params.get('date_from')
         date_to    = request.query_params.get('date_to')
         phone_number = request.query_params.get('phone_number')
+        search     = request.query_params.get('search')
+        # Pagination is opt-in: only when the client asks (?page= / ?page_size=).
+        # This keeps every existing caller (which expects the full list) working,
+        # while the Job Cards list page opts in and replaces the 7-day window.
+        paginated  = bool(request.query_params.get('page') or request.query_params.get('page_size'))
 
         qs = JobCard.objects.select_related(
             'customer_asset',
@@ -109,7 +121,9 @@ class JobCardListCreateView(APIView):
             'sales_products__inventory__product__product_type',
         )
 
-        if not date_param and not date_from and not date_to:
+        # Legacy default window: non-paginated callers still get the last 7 days
+        # (unless they pass an explicit date). Paginated requests scan everything.
+        if not paginated and not date_param and not date_from and not date_to:
             qs = qs.filter(
                 job_card_date__gte=_date.today() - timedelta(days=7),
                 job_card_date__lte=_date.today(),
@@ -137,6 +151,39 @@ class JobCardListCreateView(APIView):
             qs = qs.filter(garage_owner__isnull=True)
         elif owner_type == 'garage':
             qs = qs.filter(garage_owner__isnull=False)
+        if search:
+            qs = qs.filter(
+                Q(job_card_number__icontains=search) |
+                Q(customer__customer_name__icontains=search) |
+                Q(customer__phone_number__icontains=search) |
+                Q(customer_phone_number__icontains=search) |
+                Q(customer_asset__vehicle_number__icontains=search) |
+                Q(customer_asset__vehicle_company__icontains=search) |
+                Q(customer_asset__vehicle_model__icontains=search) |
+                Q(garage_owner__garage_name__icontains=search) |
+                Q(garage_owner__name__icontains=search)
+            )
+
+        # Stable ordering (newest first) — required for consistent pagination.
+        qs = qs.order_by('-job_card_date', '-id')
+
+        if paginated:
+            # Summary counts across the WHOLE filtered set (independent of page),
+            # so the stat cards stay accurate regardless of which page is shown.
+            stats = qs.aggregate(
+                twoWheeler=Count('id', filter=Q(customer_asset__vehicle_type='two_wheeler')),
+                fourWheeler=Count('id', filter=Q(customer_asset__vehicle_type='four_wheeler')),
+                other=Count('id', filter=Q(customer_asset__vehicle_type='other')),
+                active=Count('id', filter=Q(job_card_status='IN_PROGRESS')),
+                completed=Count('id', filter=Q(job_card_status='COMPLETED')),
+            )
+            paginator = JobCardPagination()
+            page = paginator.paginate_queryset(qs, request)
+            serializer = JobCardSerializer(page, many=True)
+            response = paginator.get_paginated_response(serializer.data)
+            response.data['stats'] = stats
+            print(f"Serialization took: {time.time() - start:.3f} seconds, queries: {len(connection.queries)}")
+            return response
 
         serializer = JobCardSerializer(qs, many=True)
         print(f"Serialization took: {time.time() - start:.3f} seconds, queries: {len(connection.queries)}")

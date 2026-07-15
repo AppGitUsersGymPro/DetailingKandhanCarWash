@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, ClipboardList, Filter, Search, ChevronRight, Pencil, FileText, Warehouse } from 'lucide-react';
+import { Plus, ClipboardList, Filter, Search, ChevronRight, ChevronLeft, Pencil, FileText, Warehouse } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
@@ -102,12 +102,17 @@ const PAY_STATUS = {
   unpaid: { label: 'Unpaid', cls: 'bg-red-900/30 text-red-300 border-red-700/50' },
 };
 
+const PAGE_SIZE = 25; // must match JobCardPagination.page_size on the backend
+
 export default function JobCardsList() {
   const navigate = useNavigate();
   const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState([]);
+  const [page, setPage] = useState(1);
+  const [count, setCount] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
   const [employeeFilter, setEmployeeFilter] = useState('');
@@ -137,11 +142,21 @@ export default function JobCardsList() {
     listVehicleModels({ company: companyFilter }).then(d => setModels(Array.isArray(d) ? d : [])).catch(() => { });
   }, [companyFilter]);
 
+  // Debounce the search box → server-side search param. Reset to page 1 on change.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
   useEffect(() => {
     async function loadAll() {
       setLoading(true);
       try {
-        const params = {};
+        const params = { page };
+        if (debouncedSearch) params.search = debouncedSearch;
         if (statusFilter) params.status = statusFilter;
         if (dateFilter) params.date = dateFilter;
         if (employeeFilter) params.employee = employeeFilter;
@@ -149,48 +164,46 @@ export default function JobCardsList() {
         if (modelFilter) params.model = modelFilter;
         if (ownerTypeFilter) params.owner_type = ownerTypeFilter;
 
-        const [jobsData, twoWheeler, fourWheeler, otherVehicle, active, completed] =
-          await Promise.all([
-            listJobCards(Object.keys(params).length ? params : undefined),
-            // listJobCardsByType('two_wheeler'),
-            // listJobCardsByType('four_wheeler'),
-            // listJobCardsByType('other'),
-            // listJobCards({ status: 'IN_PROGRESS' }),
-            // listJobCards({ status: 'COMPLETED' }),
-          ]);
-        setJobs(Array.isArray(jobsData) ? jobsData : (jobsData.results || []));
-        setStats({
-          twoWheeler: jobsData.filter(j => j.vehicle_type === "two_wheeler").length,
-          fourWheeler: jobsData.filter(j => j.vehicle_type === "four_wheeler").length,
-          other: jobsData.filter(j => j.vehicle_type === "other").length,
-          active: jobsData.filter(j => j.job_card_status === "IN_PROGRESS").length,
-          completed: jobsData.filter(j => j.job_card_status === "COMPLETED").length,
-        });
+        const jobsData = await listJobCards(params);
+
+        // Paginated response: { count, results, stats }. Fall back gracefully
+        // if an array ever comes back.
+        const rows = Array.isArray(jobsData) ? jobsData : (jobsData.results || []);
+        setJobs(rows);
+        setCount(Array.isArray(jobsData) ? rows.length : (jobsData.count ?? rows.length));
+        const s = jobsData?.stats;
+        if (s) {
+          setStats({
+            twoWheeler: s.twoWheeler || 0,
+            fourWheeler: s.fourWheeler || 0,
+            other: s.other || 0,
+            active: s.active || 0,
+            completed: s.completed || 0,
+          });
+        }
       } catch (err) {
+        // Requested page is out of range (e.g. after filtering) → snap back to page 1.
+        if (err?.response?.status === 404 && page !== 1) {
+          setPage(1);
+          return;
+        }
         toast.error(extractError(err));
       } finally {
         setLoading(false);
       }
     }
     loadAll();
-  }, [statusFilter, dateFilter, employeeFilter, companyFilter, modelFilter, ownerTypeFilter, refreshKey]); // eslint-disable-line
+  }, [page, debouncedSearch, statusFilter, dateFilter, employeeFilter, companyFilter, modelFilter, ownerTypeFilter, refreshKey]); // eslint-disable-line
 
+  // Text search is handled server-side (across all pages). Usage/Payment are
+  // computed fields, so they refine the current page client-side.
   const filtered = useMemo(() => {
     let list = jobs;
     if (usageFilter === 'complete') list = list.filter(j => j.usage_complete === true);
     if (usageFilter === 'incomplete') list = list.filter(j => j.usage_complete === false);
     if (paymentFilter) list = list.filter(j => j.payment_status === paymentFilter);
-    if (!search.trim()) return list;
-    const s = search.toLowerCase();
-    return list.filter((j) =>
-      (j.job_card_number || '').toLowerCase().includes(s) ||
-      (j.customer_name || '').toLowerCase().includes(s) ||
-      (j.vehicle_number || '').toLowerCase().includes(s) ||
-      (j.vehicle_company || '').toLowerCase().includes(s) ||
-      (j.vehicle_model || '').toLowerCase().includes(s) ||
-      (j.phone_number || '').toLowerCase().includes(s)
-    );
-  }, [jobs, search, usageFilter, paymentFilter]);
+    return list;
+  }, [jobs, usageFilter, paymentFilter]);
 
   const columns = [
     {
@@ -385,7 +398,7 @@ export default function JobCardsList() {
           <button
             key={v}
             type="button"
-            onClick={() => setOwnerTypeFilter(v)}
+            onClick={() => { setOwnerTypeFilter(v); setPage(1); }}
             className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${ownerTypeFilter === v
               ? 'bg-accent text-white'
               : 'text-gray-400 hover:text-gray-200 hover:bg-bg-hover'
@@ -410,7 +423,7 @@ export default function JobCardsList() {
         </div>
         {/* Row 2: status + date */}
         <div className="flex flex-col sm:flex-row gap-3">
-          <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <Select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
             <option value="">All Statuses</option>
             <option value="IN_PROGRESS">In Progress</option>
             <option value="COMPLETED">Completed</option>
@@ -418,7 +431,7 @@ export default function JobCardsList() {
           <Input
             type="date"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
+            onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
             title="Filter by date"
           />
         </div>
@@ -426,7 +439,7 @@ export default function JobCardsList() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <SearchableSelect
             value={String(employeeFilter)}
-            onChange={setEmployeeFilter}
+            onChange={(v) => { setEmployeeFilter(v); setPage(1); }}
             options={[
               { value: '', label: 'All Employees' },
               ...employees.map(e => ({ value: String(e.id), label: e.employee_name })),
@@ -435,7 +448,7 @@ export default function JobCardsList() {
           />
           <SearchableSelect
             value={companyFilter}
-            onChange={(v) => { setCompanyFilter(v); setModelFilter(''); }}
+            onChange={(v) => { setCompanyFilter(v); setModelFilter(''); setPage(1); }}
             options={[
               { value: '', label: 'All Companies' },
               ...companies.map(c => ({ value: c.name, label: c.name })),
@@ -444,7 +457,7 @@ export default function JobCardsList() {
           />
           <SearchableSelect
             value={modelFilter}
-            onChange={setModelFilter}
+            onChange={(v) => { setModelFilter(v); setPage(1); }}
             options={[
               { value: '', label: companyFilter ? 'All Models' : 'Select company first' },
               ...models.map(m => ({ value: m.name, label: m.name })),
@@ -468,7 +481,7 @@ export default function JobCardsList() {
           <div>
             <button
               type="button"
-              onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); setUsageFilter(''); setPaymentFilter(''); }}
+              onClick={() => { setDateFilter(''); setEmployeeFilter(''); setCompanyFilter(''); setModelFilter(''); setStatusFilter(''); setUsageFilter(''); setPaymentFilter(''); setPage(1); }}
               className="text-xs text-gray-400 hover:text-gray-200 underline"
             >
               Clear all filters
@@ -476,13 +489,6 @@ export default function JobCardsList() {
           </div>
         )}
       </div>
-
-      {/* Last-7-days notice */}
-      {!dateFilter && (
-        <p className="text-xs text-gray-500 mb-3 px-1">
-          Showing job cards for the last 7 days. Select a date above to view a specific day.
-        </p>
-      )}
 
       {/* Payment modal — outside filter bar so it renders correctly */}
       <AddPaymentModal
@@ -542,6 +548,36 @@ export default function JobCardsList() {
               />
             ))}
           </div>
+
+          {/* Pagination */}
+          {(() => {
+            const totalPages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+            return (
+              <div className="flex items-center justify-between gap-3 mt-4">
+                <span className="text-xs text-gray-500">
+                  {count.toLocaleString('en-IN')} job card{count !== 1 ? 's' : ''} · Page {page} of {totalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page <= 1 || loading}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeft size={14} /> Prev
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next <ChevronRight size={14} />
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
         </>
       )}
     </div>
