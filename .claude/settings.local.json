@@ -13,7 +13,10 @@
       "Bash(npx eslint *)",
       "Bash(npx vite *)",
       "Bash(../venv/Scripts/python.exe manage.py check)",
-      "Bash(./venv/Scripts/python.exe manage.py check)"
+      "Bash(./venv/Scripts/python.exe manage.py check)",
+      "Bash(./venv/Scripts/python.exe manage.py makemigrations estimation)",
+      "Bash(./venv/Scripts/python.exe manage.py makemigrations --check --dry-run)",
+      "Bash(./venv/Scripts/python.exe manage.py migrate estimation)"
     ]
   }
 }

@@ -31,6 +31,7 @@ import Notifications from './pages/Notifications';
 import UserGuide from './pages/UserGuide';
 import PublicInvoiceView from './pages/Public/InvoiceView';
 import PublicSalesInvoiceView from './pages/Public/SalesInvoiceView';
+import PublicEstimationView from './pages/Public/EstimationView';
 
 function AdminOnly({ children }) {
   const role = tokens.getRole();
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/invoice/view/:token" element={<PublicInvoiceView />} />
           <Route path="/sales/view/:token" element={<PublicSalesInvoiceView />} />
+          <Route path="/estimation/view/:token" element={<PublicEstimationView />} />
           <Route element={<RequireAuth><Layout /></RequireAuth>}>
             <Route index element={<Dashboard />} />
 

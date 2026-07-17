@@ -76,6 +76,11 @@ export function openWhatsAppForEstimation(estimation, toast) {
     .map(it => `  • ${it.service_name} — ₹${Number(it.amount || 0).toLocaleString('en-IN')}`)
     .join('\n');
 
+  // Only saved estimations have a share token; a preview has nothing to link to yet.
+  const shareUrl = estimation.share_token
+    ? `${window.location.origin}/estimation/view/${estimation.share_token}`
+    : null;
+
   const msg = [
     `Hi ${estimation.customer_name || 'there'} 👋`,
     '',
@@ -87,6 +92,7 @@ export function openWhatsAppForEstimation(estimation, toast) {
     services ? `🔧 *Services:*\n${services}` : null,
     '',
     `💰 *Estimated Total: ₹${total.toLocaleString('en-IN')}*`,
+    shareUrl ? `\n🔗 View Estimate: ${shareUrl}` : null,
     '',
     `Thank you! 🙏`,
   ].filter(l => l !== null).join('\n');

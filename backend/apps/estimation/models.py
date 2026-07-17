@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 
 # Create your models here.
@@ -22,6 +23,8 @@ class Estimation(models.Model):
     vehicle_sub_type = models.CharField(max_length=255, choices=SUB_TYPE,blank=False, null=False)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
     created_at = models.DateTimeField(auto_now_add=True)
+    # Opaque public identifier for the WhatsApp share link (no auth required).
+    share_token = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
     class Meta:
         ordering = ['-created_at']

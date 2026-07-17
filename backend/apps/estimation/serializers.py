@@ -13,7 +13,7 @@ class EstimationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Estimation
         fields = '__all__'
-        read_only_fields = ['total_amount', 'created_at']
+        read_only_fields = ['total_amount', 'created_at', 'share_token']
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')

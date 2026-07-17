@@ -9,8 +9,6 @@ import { useToast } from '../../components/Toast';
 import { listServicesWithVehicleType } from '../../api/services';
 import { createEstimation } from '../../api/estimation';
 import { extractError } from '../../api/axios';
-import { openWhatsAppForEstimation } from '../../utils/jobcard';
-import { WaIcon } from './Detail';
 
 const VEHICLE_LABEL = {
   two_wheeler: 'Two Wheeler',
@@ -344,13 +342,6 @@ export default function Estimation() {
           <>
             <Button variant="secondary" onClick={() => setPreview(null)} disabled={submitting}>
               Cancel
-            </Button>
-            <Button
-              variant="success"
-              onClick={() => openWhatsAppForEstimation(preview, toast)}
-              disabled={submitting}
-            >
-              <WaIcon size={15} /> WhatsApp
             </Button>
             <Button onClick={confirmSubmit} loading={submitting}>
               <FileText size={15} /> Submit
