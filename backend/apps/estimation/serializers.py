@@ -5,7 +5,7 @@ from .models import Estimation, EstimationItem
 class EstimationItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = EstimationItem
-        fields = ['id', 'service_name', 'amount']
+        fields = ['id', 'service_name', 'amount', 'selected_service']
 
 class EstimationSerializer(serializers.ModelSerializer):
     items = EstimationItemSerializer(many=True)

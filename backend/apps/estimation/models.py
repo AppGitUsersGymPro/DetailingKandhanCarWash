@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from apps.services.models import Service
 
 # Create your models here.
 class Estimation(models.Model):
@@ -10,15 +11,18 @@ class Estimation(models.Model):
         ("others", "Others"),
     ]
     SUB_TYPE = [
-        ("SUV", "SUV"),
-        ("CompactSUV", "CompactSUV"),
-        ("Sedan", "Sedan"),
-        ("Hatchback", "Hatchback"),
+        ("suv", "SUV"),
+        ("compact_suv", "CompactSUV"),
+        ("sedan", "Sedan"),
+        ("hatchback", "Hatchback"),
         ("others", "Others"),
     ]
     customer_name = models.CharField(max_length=255, blank=False, null=False)
     customer_phone_number = models.CharField(max_length=10, blank= False, null=False)
     vehicle_name = models.CharField(max_length=255)
+    vehicle_company= models.CharField(max_length=255, blank=False, null = True)
+    vehicle_model = models.CharField(max_length=255, blank=True, null=True)
+    vehicle_colour = models.CharField(max_length=255, blank=True, null=True)
     vehicle_type = models.CharField(max_length=255, choices=VEHICLE_TYPE, blank=False, null=False)
     vehicle_sub_type = models.CharField(max_length=255, choices=SUB_TYPE,blank=False, null=False)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -34,6 +38,7 @@ class EstimationItem(models.Model):
     estimation    = models.ForeignKey(Estimation, related_name='items', on_delete=models.CASCADE)
     service_name  = models.CharField(max_length=255)
     amount        = models.DecimalField(max_digits=10, decimal_places=2)
+    selected_service= models.ForeignKey(Service, on_delete = models.CASCADE, null=True, blank=True)
 
     def __str__(self):
         return f"{self.service_name} — ₹{self.amount}"

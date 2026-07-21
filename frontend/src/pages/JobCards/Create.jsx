@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Check } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
@@ -76,11 +76,12 @@ function getServicePrice(service, effectivePricingType) {
 
 function filterServicesForVehicle(services, effectivePricingType) {
   if (!effectivePricingType) return services;
-  return services.filter(s => {
-    const vps = s.vehicle_prices || [];
-    if (vps.length === 0) return true;
-    return vps.some(vp => vp.vehicle_type === effectivePricingType);
-  });
+  // return services.filter(s => {
+  //   const vps = s.vehicle_prices || [];
+  //   // if (vps.length === 0) return true;
+  //   // return vps.filter(vp => vp.vehicle_type === effectivePricingType);
+  // });
+  return services;
 }
 
 /* ─── VehicleTypePicker ───────────────────────────────────────────────────── */
@@ -207,7 +208,8 @@ function FourWheelerSubTypePicker({ value, onChange, error }) {
 export default function JobCardCreate() {
   const navigate = useNavigate();
   const toast = useToast();
-
+  const location = useLocation();
+  const prefill = location.state?.prefill;
   const [step, setStep] = useState(1);
   const [checking, setChecking] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -383,15 +385,52 @@ export default function JobCardCreate() {
         }
         setVehicleMatch({ customer: result.customer, vehicle: result.vehicle });
         setVehicleSubType(result.vehicle?.vehicle_sub_type || '');
+        if (prefill) {
+          if (prefill.selected_service.length) {
+            const priceMap = {};
+            prefill.selected_service.forEach(s => {
+              priceMap[s.selected_service] = parseFloat(s.amount);
+              toggleService(s.selected_service);
+            });
+            setServicePrices(priceMap);
+          }
+        }
 
         setMatchedTier(resolveTier(result.customer?.id));
         setCustomerMatch(null);
         setStep(3);
       } else {
-        setVehicleMatch(null);
-        setCustomerMatch(null);
-        setMatchedTier(null);
-        setStep(2);
+        if (prefill) {
+          setCustomer((c) => ({
+            ...c,
+            customer_name: prefill.customer_name || '',
+            phone_number: prefill.customer_phone_number || '',
+          }));
+          setVehicle((v) => ({
+            ...v,
+            vehicle_name: prefill.vehicle_name || '',
+            vehicle_company: prefill.vehicle_company || '',
+            vehicle_model: prefill.vehicle_model || '',
+            vehicle_colour: prefill.vehicle_colour || '',
+            vehicle_type: prefill.vehicle_type || 'four_wheeler',
+          }));
+          setVehicleSubType(prefill.vehicle_sub_type || '');
+          if (prefill.selected_service.length) {
+            const priceMap = {};
+            prefill.selected_service.forEach(s => {
+              priceMap[s.selected_service] = parseFloat(s.amount);
+              toggleService(s.selected_service);
+            });
+            setServicePrices(priceMap);
+          }
+          setStep(2);
+        }
+        else {
+          setVehicleMatch(null);
+          setCustomerMatch(null);
+          setMatchedTier(null);
+          setStep(2);
+        }
       }
     } catch (err) {
       toast.error(extractError(err));

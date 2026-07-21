@@ -8,6 +8,7 @@ import { useToast } from '../../components/Toast';
 import { getEstimation } from '../../api/estimation';
 import { extractError } from '../../api/axios';
 import { openWhatsAppForEstimation } from '../../utils/jobcard';
+// import { JobCardCreate } from '../JobCards/Create';
 
 const fmt = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -22,12 +23,12 @@ const VEHICLE_LABEL = {
 const fmtDateTime = (s) =>
   s
     ? new Date(s).toLocaleString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
     : '—';
 
 // WhatsApp glyph — kept here so the button matches the rest of the app.
@@ -102,6 +103,21 @@ export default function EstimationDetail() {
             >
               <WaIcon size={14} /> WhatsApp
             </Button>
+            <Button size="sm" onClick={() => navigate('/jobcards/new', {
+              state: {
+                prefill: {
+                  customer_name: est.customer_name,
+                  customer_phone_number: est.customer_phone_number,
+                  vehicle_name: est.vehicle_name,
+                  vehicle_type: est.vehicle_type,
+                  vehicle_sub_type: est.vehicle_sub_type,
+                  vehicle_company: est.vehicle_company,
+                  vehicle_model: est.vehicle_model,
+                  vehicle_colour: est.vehicle_colour,
+                  selected_service: est.items,
+                }
+              }
+            })}>Convert to JobCard </Button>
           </div>
         }
       />
@@ -114,6 +130,9 @@ export default function EstimationDetail() {
             <Info label="Customer Name" value={est.customer_name} />
             <Info label="Phone Number" value={est.customer_phone_number} />
             <Info label="Vehicle Name" value={est.vehicle_name} />
+            <Info label="Vehicle Company" value={est.vehicle_company} />
+            <Info label="Vehicle Model" value={est.vehicle_model} />
+            <Info label="Vehicle Colour" value={est.vehicle_colour} />
             <Info label="Vehicle Type" value={VEHICLE_LABEL[est.vehicle_type] || est.vehicle_type} />
             {est.vehicle_type === 'four_wheeler' && (
               <Info label="Vehicle Sub Type" value={est.vehicle_sub_type} />
@@ -138,6 +157,7 @@ export default function EstimationDetail() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }

@@ -18,6 +18,7 @@ export default function VehicleAutocomplete({
   label, required, error, value, onChange, onSelect,
   fetchOptions, onCreate, placeholder, disabled,
 }) {
+  value = value ?? '';
   const [open, setOpen]           = useState(false);
   const [options, setOptions]     = useState([]);
   const [loading, setLoading]     = useState(false);

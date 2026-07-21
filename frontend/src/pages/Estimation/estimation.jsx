@@ -43,7 +43,7 @@ function resolvePrice(service, vehicleType, vehicleSubType) {
 }
 
 let rowSeq = 0;
-const newRow = (service_name = '', amount = '') => ({ key: ++rowSeq, service_name, amount });
+const newRow = (service_name = '', amount = '', service_id = 0) => ({ key: ++rowSeq, service_name, amount, service_id });
 
 export default function Estimation() {
   const toast = useToast();
@@ -55,6 +55,9 @@ export default function Estimation() {
     vehicle_name: '',
     vehicle_type: '',
     vehicle_sub_type: '',
+    vehicle_model: '',
+    vehicle_company: '',
+    vehicle_colour: '',
   });
   const [services, setServices] = useState([]);
   const [loadingServices, setLoadingServices] = useState(false);
@@ -103,7 +106,7 @@ export default function Estimation() {
       const first = rows[0];
       const rest =
         rows.length === 1 && first && !first.service_name && !first.amount ? [] : rows;
-      return [...rest, newRow(service.service_name, price)];
+      return [...rest, newRow(service.service_name, price, service.id)];
     });
   };
 
@@ -116,7 +119,7 @@ export default function Estimation() {
     if (customerData.vehicle_type === 'four_wheeler' && !customerData.vehicle_sub_type)
       e.vehicle_sub_type = 'Select a sub type';
 
-    const validItems = items.filter((it) => it.service_name.trim() && Number(it.amount) > 0);
+    const validItems = items.filter((it) => it.service_id && it.service_name.trim() && Number(it.amount) > 0);
     if (validItems.length === 0) e.items = 'Add at least one service with an amount';
     setErrors(e);
     return { ok: Object.keys(e).length === 0, validItems };
@@ -127,7 +130,7 @@ export default function Estimation() {
     ev.preventDefault();
     const { ok, validItems } = validate();
     if (!ok) return;
-
+    console.log(items);
     // vehicle_sub_type is required by the backend for every vehicle type,
     // so fall back to "others" when it isn't a four-wheeler.
     const payload = {
@@ -135,6 +138,9 @@ export default function Estimation() {
       customer_phone_number: customerData.customer_phone_number.trim(),
       vehicle_name: customerData.vehicle_name.trim(),
       vehicle_type: customerData.vehicle_type,
+      vehicle_company: customerData.vehicle_company.trim(),
+      vehicle_model: customerData.vehicle_model.trim(),
+      vehicle_colour: customerData.vehicle_colour.trim(),
       vehicle_sub_type:
         customerData.vehicle_type === 'four_wheeler'
           ? customerData.vehicle_sub_type
@@ -142,6 +148,7 @@ export default function Estimation() {
       items: validItems.map((it) => ({
         service_name: it.service_name.trim(),
         amount: Number(it.amount),
+        selected_service: it.service_id,
       })),
     };
     setPreview(payload);
@@ -210,6 +217,35 @@ export default function Estimation() {
               />
             </Field>
 
+            <Field label="Vehicle Company">
+              <Input
+                type="text"
+                placeholder="Maruthi Suzuki, BMW"
+                value={customerData.vehicle_company}
+                onChange={(e) => update('vehicle_company', e.target.value)}
+              />
+            </Field>
+
+
+            <Field label="Vehicle Model">
+              <Input
+                type="text"
+                placeholder="Swift, Innova"
+                value={customerData.vehicle_model}
+                onChange={(e) => update('vehicle_model', e.target.value)}
+              />
+            </Field>
+
+            <Field label="Vehicle Colour">
+              <Input
+                type="text"
+                placeholder="Black, Red"
+                value={customerData.vehicle_colour}
+                onChange={(e) => update('vehicle_colour', e.target.value)}
+              />
+            </Field>
+
+
             <Field label="Vehicle Type" required error={errors.vehicle_type}>
               <Select
                 value={customerData.vehicle_type}
@@ -233,10 +269,10 @@ export default function Estimation() {
                   onChange={(e) => update('vehicle_sub_type', e.target.value)}
                 >
                   <option value="">Select sub type…</option>
-                  <option value="SUV">SUV</option>
-                  <option value="CompactSUV">Compact SUV</option>
-                  <option value="Sedan">Sedan</option>
-                  <option value="Hatchback">Hatchback</option>
+                  <option value="suv">SUV</option>
+                  <option value="compact_suv">Compact SUV</option>
+                  <option value="sedan">Sedan</option>
+                  <option value="hatchback">Hatchback</option>
                   <option value="others">Others</option>
                 </Select>
               </Field>
@@ -258,10 +294,10 @@ export default function Estimation() {
                   {!customerData.vehicle_type
                     ? 'Select a vehicle type first'
                     : loadingServices
-                    ? 'Loading services…'
-                    : services.length === 0
-                    ? 'No services available'
-                    : '+ Add a service…'}
+                      ? 'Loading services…'
+                      : services.length === 0
+                        ? 'No services available'
+                        : '+ Add a service…'}
                 </option>
                 {services.map((s) => (
                   <option key={s.id} value={s.id}>
