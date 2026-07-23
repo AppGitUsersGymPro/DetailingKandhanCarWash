@@ -156,7 +156,6 @@ class JobCardListCreateView(APIView):
                 Q(job_card_number__icontains=search) |
                 Q(customer__customer_name__icontains=search) |
                 Q(customer__phone_number__icontains=search) |
-                Q(customer_phone_number__icontains=search) |
                 Q(customer_asset__vehicle_number__icontains=search) |
                 Q(customer_asset__vehicle_company__icontains=search) |
                 Q(customer_asset__vehicle_model__icontains=search) |
